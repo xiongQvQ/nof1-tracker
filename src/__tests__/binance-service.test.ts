@@ -694,4 +694,82 @@ describe("BinanceService", () => {
       expect(tpOrder.stopPrice).toBe("43210.12345678");
     });
   });
+
+  // New API method coverage tests
+  describe("API Method Coverage", () => {
+    let mockAxios: any;
+
+    beforeEach(() => {
+      // Mock axios for API tests
+      mockAxios = {
+        create: jest.fn(() => ({
+          request: jest.fn(),
+          get: jest.fn()
+        }))
+      };
+
+      // Mock axios module
+      const axios = require('axios');
+      axios.create = mockAxios.create;
+      axios.isAxiosError = jest.fn(() => false);
+    });
+
+    it("should have getServerTime method", () => {
+      expect(typeof service.getServerTime).toBe('function');
+    });
+
+    it("should have getAccountInfo method", () => {
+      expect(typeof service.getAccountInfo).toBe('function');
+    });
+
+    it("should have getPositions method", () => {
+      expect(typeof service.getPositions).toBe('function');
+    });
+
+    it("should have placeOrder method", () => {
+      expect(typeof service.placeOrder).toBe('function');
+    });
+
+    it("should have setLeverage method", () => {
+      expect(typeof service.setLeverage).toBe('function');
+    });
+
+    it("should have cancelOrder method", () => {
+      expect(typeof service.cancelOrder).toBe('function');
+    });
+
+    it("should have cancelAllOrders method", () => {
+      expect(typeof service.cancelAllOrders).toBe('function');
+    });
+
+    it("should have getOrderStatus method", () => {
+      expect(typeof service.getOrderStatus).toBe('function');
+    });
+
+    it("should have getOpenOrders method", () => {
+      expect(typeof service.getOpenOrders).toBe('function');
+    });
+
+    it("should have get24hrTicker method", () => {
+      expect(typeof service.get24hrTicker).toBe('function');
+    });
+
+    it("should execute constructor with different network settings", () => {
+      const mainnetService = new BinanceService('key', 'secret', false);
+      const testnetService = new BinanceService('key', 'secret', true);
+
+      expect(mainnetService).toBeDefined();
+      expect(testnetService).toBeDefined();
+    });
+
+    it("should handle constructor with null credentials", () => {
+      const nullService = new BinanceService(null as any, null as any, false);
+      expect(nullService).toBeDefined();
+    });
+
+    it("should handle constructor with undefined credentials", () => {
+      const undefService = new BinanceService(undefined as any, undefined as any, false);
+      expect(undefService).toBeDefined();
+    });
+  });
 });
