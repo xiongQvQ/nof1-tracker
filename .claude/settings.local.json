@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:nof1.ai)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
