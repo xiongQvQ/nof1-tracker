@@ -337,7 +337,8 @@ program
                 tradingPlan,
                 plan.entryPrice,
                 plan.position.current_price,
-                plan.symbol
+                plan.symbol,
+                options.priceTolerance // Pass the custom tolerance from command line
               );
 
               // Display price tolerance information

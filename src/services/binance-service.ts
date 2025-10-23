@@ -10,6 +10,7 @@ export interface BinanceOrder {
   price?: string;
   stopPrice?: string;
   timeInForce?: "GTC" | "IOC" | "FOK";
+  closePosition?: string;
 }
 
 export interface StopLossOrder {
@@ -106,6 +107,49 @@ export class BinanceService {
         'Content-Type': 'application/json',
       },
     });
+  }
+
+  /**
+   * Convert symbol from nof1 format (BTC) to Binance format (BTCUSDT)
+   */
+  private convertSymbol(symbol: string): string {
+    // If symbol already ends with USDT, return as is
+    if (symbol.endsWith('USDT')) {
+      return symbol;
+    }
+    // Otherwise, append USDT
+    return `${symbol}USDT`;
+  }
+
+  /**
+   * Format quantity precision based on symbol
+   */
+  private formatQuantity(quantity: number | string, symbol: string): string {
+    // Define precision for different symbols
+    const precisionMap: Record<string, number> = {
+      'BTCUSDT': 3,      // BTC uses 3 decimal places (adjusted)
+      'ETHUSDT': 5,      // ETH uses 5 decimal places
+      'ADAUSDT': 1,      // ADA uses 1 decimal place
+      'DOGEUSDT': 1,     // DOGE uses 1 decimal place
+      'SOLUSDT': 2,      // SOL uses 2 decimal places
+      'AVAXUSDT': 3,     // AVAX uses 3 decimal places
+      'MATICUSDT': 2,    // MATIC uses 2 decimal places
+      'DOTUSDT': 3,      // DOT uses 3 decimal places
+      'LINKUSDT': 3,     // LINK uses 3 decimal places
+      'UNIUSDT': 3,      // UNI uses 3 decimal places
+    };
+
+    const baseSymbol = this.convertSymbol(symbol);
+    const precision = precisionMap[baseSymbol] || 6; // Default to 6 decimal places
+
+    // Convert to number if it's a string
+    const quantityNum = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+
+    // Format quantity to specified precision
+    const formattedQuantity = quantityNum.toFixed(precision);
+
+    // Remove trailing zeros after decimal point
+    return formattedQuantity.replace(/\.?0+$/, '');
   }
 
   /**
@@ -211,15 +255,20 @@ export class BinanceService {
    */
   async placeOrder(order: BinanceOrder): Promise<OrderResponse> {
     const params: Record<string, any> = {
-      symbol: order.symbol,
+      symbol: this.convertSymbol(order.symbol),
       side: order.side,
       type: order.type,
-      quantity: order.quantity,
     };
+
+    // 如果使用 closePosition，则不需要 quantity
+    if (order.closePosition !== "true") {
+      params.quantity = this.formatQuantity(order.quantity, order.symbol);
+    }
 
     if (order.price) params.price = order.price;
     if (order.stopPrice) params.stopPrice = order.stopPrice;
     if (order.timeInForce) params.timeInForce = order.timeInForce;
+    if (order.closePosition) params.closePosition = order.closePosition;
 
     const response = await this.makeSignedRequest<OrderResponse>('/fapi/v1/order', 'POST', params);
     return response;
@@ -230,7 +279,7 @@ export class BinanceService {
    */
   async setLeverage(symbol: string, leverage: number): Promise<any> {
     return await this.makeSignedRequest('/fapi/v1/leverage', 'POST', {
-      symbol,
+      symbol: this.convertSymbol(symbol),
       leverage: leverage.toString(),
     });
   }
@@ -240,7 +289,7 @@ export class BinanceService {
    */
   async cancelOrder(symbol: string, orderId: number): Promise<OrderResponse> {
     return await this.makeSignedRequest<OrderResponse>('/fapi/v1/order', 'DELETE', {
-      symbol,
+      symbol: this.convertSymbol(symbol),
       orderId: orderId.toString(),
     });
   }
@@ -249,7 +298,9 @@ export class BinanceService {
    * 取消所有订单
    */
   async cancelAllOrders(symbol: string): Promise<any> {
-    return await this.makeSignedRequest('/fapi/v1/allOpenOrders', 'DELETE', { symbol });
+    return await this.makeSignedRequest('/fapi/v1/allOpenOrders', 'DELETE', {
+      symbol: this.convertSymbol(symbol)
+    });
   }
 
   /**
@@ -257,7 +308,7 @@ export class BinanceService {
    */
   async getOrderStatus(symbol: string, orderId: number): Promise<OrderResponse> {
     return await this.makeSignedRequest<OrderResponse>('/fapi/v1/order', 'GET', {
-      symbol,
+      symbol: this.convertSymbol(symbol),
       orderId: orderId.toString(),
     });
   }
@@ -267,7 +318,7 @@ export class BinanceService {
    */
   async getOpenOrders(symbol?: string): Promise<OrderResponse[]> {
     const params: Record<string, any> = {};
-    if (symbol) params.symbol = symbol;
+    if (symbol) params.symbol = this.convertSymbol(symbol);
 
     return await this.makeSignedRequest<OrderResponse[]>('/fapi/v1/openOrders', 'GET', params);
   }
@@ -277,7 +328,7 @@ export class BinanceService {
    */
   async get24hrTicker(symbol?: string): Promise<any> {
     const params: Record<string, any> = {};
-    if (symbol) params.symbol = symbol;
+    if (symbol) params.symbol = this.convertSymbol(symbol);
 
     return await this.makePublicRequest('/fapi/v1/ticker/24hr', params);
   }
@@ -305,8 +356,9 @@ export class BinanceService {
       symbol,
       side,
       type: "TAKE_PROFIT_MARKET",
-      quantity: quantity.toString(),
-      stopPrice: takeProfitPrice.toString()
+      quantity: this.formatQuantity(quantity, symbol),
+      stopPrice: takeProfitPrice.toString(),
+      closePosition: "true"
     };
   }
 
@@ -323,8 +375,9 @@ export class BinanceService {
       symbol,
       side,
       type: "STOP_MARKET",
-      quantity: quantity.toString(),
-      stopPrice: stopLossPrice.toString()
+      quantity: this.formatQuantity(quantity, symbol),
+      stopPrice: stopLossPrice.toString(),
+      closePosition: "true"
     };
   }
 

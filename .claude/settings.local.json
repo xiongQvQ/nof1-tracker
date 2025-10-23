@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:nof1.ai)"
+      "WebFetch(domain:nof1.ai)",
+      "WebSearch",
+      "mcp__web-search-prime__webSearchPrime",
+      "WebFetch(domain:binance-docs.github.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:stackoverflow.com)"
     ],
     "deny": [],
     "ask": []

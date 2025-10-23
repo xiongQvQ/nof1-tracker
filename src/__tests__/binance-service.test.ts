@@ -200,7 +200,8 @@ describe("BinanceService", () => {
         side: "SELL",
         type: "TAKE_PROFIT_MARKET",
         quantity: "0.05",
-        stopPrice: "45000"
+        stopPrice: "45000",
+        closePosition: "true"
       });
     });
 
@@ -217,7 +218,8 @@ describe("BinanceService", () => {
         side: "BUY",
         type: "TAKE_PROFIT_MARKET",
         quantity: "1.5",
-        stopPrice: "2000"
+        stopPrice: "2000",
+        closePosition: "true"
       });
     });
 
@@ -233,8 +235,9 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL",
         type: "TAKE_PROFIT_MARKET",
-        quantity: "0.01234567",
-        stopPrice: "45000.12345"
+        quantity: "0.012",
+        stopPrice: "45000.12345",
+        closePosition: "true"
       });
     });
 
@@ -275,7 +278,8 @@ describe("BinanceService", () => {
         side: "SELL",
         type: "STOP_MARKET",
         quantity: "0.05",
-        stopPrice: "41000"
+        stopPrice: "41000",
+        closePosition: "true"
       });
     });
 
@@ -292,7 +296,8 @@ describe("BinanceService", () => {
         side: "BUY",
         type: "STOP_MARKET",
         quantity: "1.5",
-        stopPrice: "2400"
+        stopPrice: "2400",
+        closePosition: "true"
       });
     });
 
@@ -308,8 +313,9 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL",
         type: "STOP_MARKET",
-        quantity: "0.01234567",
-        stopPrice: "41000.98765"
+        quantity: "0.012",
+        stopPrice: "41000.98765",
+        closePosition: "true"
       });
     });
 
@@ -364,7 +370,8 @@ describe("BinanceService", () => {
         side: "SELL", // Close long position
         type: "TAKE_PROFIT_MARKET",
         quantity: "0.05",
-        stopPrice: "45000"
+        stopPrice: "45000",
+        closePosition: "true"
       });
 
       expect(result.stopLossOrder).toEqual({
@@ -372,7 +379,8 @@ describe("BinanceService", () => {
         side: "SELL", // Close long position
         type: "STOP_MARKET",
         quantity: "0.05",
-        stopPrice: "41000"
+        stopPrice: "41000",
+        closePosition: "true"
       });
     });
 
@@ -389,7 +397,8 @@ describe("BinanceService", () => {
         side: "BUY", // Close short position
         type: "TAKE_PROFIT_MARKET",
         quantity: "0.05",
-        stopPrice: "45000"
+        stopPrice: "45000",
+        closePosition: "true"
       });
 
       expect(result.stopLossOrder).toEqual({
@@ -397,7 +406,8 @@ describe("BinanceService", () => {
         side: "BUY", // Close short position
         type: "STOP_MARKET",
         quantity: "0.05",
-        stopPrice: "41000"
+        stopPrice: "41000",
+        closePosition: "true"
       });
     });
 
@@ -483,8 +493,8 @@ describe("BinanceService", () => {
 
       const result = service.createStopOrdersFromPosition(tinyPosition, "BUY");
 
-      expect(result.takeProfitOrder!.quantity).toBe("0.000001");
-      expect(result.stopLossOrder!.quantity).toBe("0.000001");
+      expect(result.takeProfitOrder!.quantity).toBe("0");
+      expect(result.stopLossOrder!.quantity).toBe("0");
     });
 
     it("should handle very large quantities", () => {
@@ -690,7 +700,7 @@ describe("BinanceService", () => {
         0.00000001,
         43210.12345678
       );
-      expect(tpOrder.quantity).toBe("1e-8");
+      expect(tpOrder.quantity).toBe("0");
       expect(tpOrder.stopPrice).toBe("43210.12345678");
     });
   });

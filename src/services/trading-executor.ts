@@ -156,7 +156,8 @@ export class TradingExecutor {
             type: stopOrders.takeProfitOrder.type,
             quantity: stopOrders.takeProfitOrder.quantity,
             leverage: 0, // Stop orders don't need leverage
-            stopPrice: stopOrders.takeProfitOrder.stopPrice
+            stopPrice: stopOrders.takeProfitOrder.stopPrice,
+            closePosition: "true"
           });
           takeProfitOrderId = tpOrderResponse.orderId.toString();
           console.log(`✅ Take Profit order placed: ${takeProfitOrderId}`);
@@ -175,7 +176,8 @@ export class TradingExecutor {
             type: stopOrders.stopLossOrder.type,
             quantity: stopOrders.stopLossOrder.quantity,
             leverage: 0, // Stop orders don't need leverage
-            stopPrice: stopOrders.stopLossOrder.stopPrice
+            stopPrice: stopOrders.stopLossOrder.stopPrice,
+            closePosition: "true"
           });
           stopLossOrderId = slOrderResponse.orderId.toString();
           console.log(`✅ Stop Loss order placed: ${stopLossOrderId}`);
