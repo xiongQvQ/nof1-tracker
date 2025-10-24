@@ -80,7 +80,7 @@ describe("BinanceService", () => {
         symbol: "ETHUSDT",
         side: "SELL",
         type: "LIMIT",
-        quantity: "1.5",
+        quantity: "1.500",
         leverage: 5
       });
     });
@@ -98,7 +98,7 @@ describe("BinanceService", () => {
 
       const binanceOrder = service.convertToBinanceOrder(tradingPlan);
 
-      expect(binanceOrder.quantity).toBe("0");
+      expect(binanceOrder.quantity).toBe("10.000"); // SHIB最小数量是10
     });
 
     it("should handle very small quantities", () => {
@@ -114,7 +114,7 @@ describe("BinanceService", () => {
 
       const binanceOrder = service.convertToBinanceOrder(tradingPlan);
 
-      expect(binanceOrder.quantity).toBe("1e-8");
+      expect(binanceOrder.quantity).toBe("0.001"); // SHIB最小数量是0.001
     });
 
     it("should handle very large quantities", () => {
@@ -130,7 +130,7 @@ describe("BinanceService", () => {
 
       const binanceOrder = service.convertToBinanceOrder(tradingPlan);
 
-      expect(binanceOrder.quantity).toBe("1000000");
+      expect(binanceOrder.quantity).toBe("1000000.000");
     });
 
     it("should handle special symbol formats", () => {
@@ -199,8 +199,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL",
         type: "TAKE_PROFIT_MARKET",
-        quantity: "0.05",
-        stopPrice: "45000",
+        quantity: "0.050",
+        stopPrice: "45000.0",
         closePosition: "true"
       });
     });
@@ -217,8 +217,8 @@ describe("BinanceService", () => {
         symbol: "ETHUSDT",
         side: "BUY",
         type: "TAKE_PROFIT_MARKET",
-        quantity: "1.5",
-        stopPrice: "2000",
+        quantity: "1.500",
+        stopPrice: "2000.00",
         closePosition: "true"
       });
     });
@@ -235,7 +235,7 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL",
         type: "TAKE_PROFIT_MARKET",
-        quantity: "0.012",
+        quantity: "0.012", // BTC quantities now formatted to 6 decimal places
         stopPrice: "45000.1", // BTC prices now formatted to 1 decimal place
         closePosition: "true"
       });
@@ -249,7 +249,7 @@ describe("BinanceService", () => {
         0.000001
       );
 
-      expect(result.stopPrice).toBe("0"); // SHIB uses default 2 decimal places, very small numbers round to 0
+      expect(result.stopPrice).toBe("0.00"); // SHIB uses default 2 decimal places, very small numbers round to 0
     });
 
     it("should handle very large take profit prices", () => {
@@ -260,7 +260,7 @@ describe("BinanceService", () => {
         1000000
       );
 
-      expect(result.stopPrice).toBe("1000000");
+      expect(result.stopPrice).toBe("1000000.0");
     });
   });
 
@@ -277,8 +277,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL",
         type: "STOP_MARKET",
-        quantity: "0.05",
-        stopPrice: "41000",
+        quantity: "0.050",
+        stopPrice: "41000.0",
         closePosition: "true"
       });
     });
@@ -295,8 +295,8 @@ describe("BinanceService", () => {
         symbol: "ETHUSDT",
         side: "BUY",
         type: "STOP_MARKET",
-        quantity: "1.5",
-        stopPrice: "2400",
+        quantity: "1.500",
+        stopPrice: "2400.00",
         closePosition: "true"
       });
     });
@@ -313,8 +313,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL",
         type: "STOP_MARKET",
-        quantity: "0.012",
-        stopPrice: "41001", // BTC prices now formatted to 1 decimal place
+        quantity: "0.012", // BTC quantities now formatted to 6 decimal places
+        stopPrice: "41001.0", // BTC prices now formatted to 1 decimal place
         closePosition: "true"
       });
     });
@@ -327,7 +327,7 @@ describe("BinanceService", () => {
         0.000001
       );
 
-      expect(result.stopPrice).toBe("0"); // SHIB uses default 2 decimal places, very small numbers round to 0
+      expect(result.stopPrice).toBe("0.00"); // SHIB uses default 2 decimal places, very small numbers round to 0
     });
 
     it("should handle very large stop loss prices", () => {
@@ -338,7 +338,7 @@ describe("BinanceService", () => {
         1000000
       );
 
-      expect(result.stopPrice).toBe("1000000");
+      expect(result.stopPrice).toBe("1000000.0");
     });
   });
 
@@ -369,8 +369,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL", // Close long position
         type: "TAKE_PROFIT_MARKET",
-        quantity: "0.05",
-        stopPrice: "45000",
+        quantity: "0.050",
+        stopPrice: "45000.0",
         closePosition: "true"
       });
 
@@ -378,8 +378,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "SELL", // Close long position
         type: "STOP_MARKET",
-        quantity: "0.05",
-        stopPrice: "41000",
+        quantity: "0.050",
+        stopPrice: "41000.0",
         closePosition: "true"
       });
     });
@@ -396,8 +396,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "BUY", // Close short position
         type: "TAKE_PROFIT_MARKET",
-        quantity: "0.05",
-        stopPrice: "45000",
+        quantity: "0.050",
+        stopPrice: "45000.0",
         closePosition: "true"
       });
 
@@ -405,8 +405,8 @@ describe("BinanceService", () => {
         symbol: "BTCUSDT",
         side: "BUY", // Close short position
         type: "STOP_MARKET",
-        quantity: "0.05",
-        stopPrice: "41000",
+        quantity: "0.050",
+        stopPrice: "41000.0",
         closePosition: "true"
       });
     });
@@ -424,7 +424,7 @@ describe("BinanceService", () => {
       const result = service.createStopOrdersFromPosition(positionTpOnly, "BUY");
 
       expect(result.takeProfitOrder).toBeDefined();
-      expect(result.takeProfitOrder!.stopPrice).toBe("45000");
+      expect(result.takeProfitOrder!.stopPrice).toBe("45000.0");
       expect(result.stopLossOrder).toBeNull();
     });
 
@@ -442,7 +442,7 @@ describe("BinanceService", () => {
 
       expect(result.takeProfitOrder).toBeNull();
       expect(result.stopLossOrder).toBeDefined();
-      expect(result.stopLossOrder!.stopPrice).toBe("41000");
+      expect(result.stopLossOrder!.stopPrice).toBe("41000.0");
     });
 
     it("should handle position with no exit plan", () => {
@@ -481,8 +481,8 @@ describe("BinanceService", () => {
 
       const result = service.createStopOrdersFromPosition(shortPosition, "SELL");
 
-      expect(result.takeProfitOrder!.quantity).toBe("1.5");
-      expect(result.stopLossOrder!.quantity).toBe("1.5");
+      expect(result.takeProfitOrder!.quantity).toBe("1.500");
+      expect(result.stopLossOrder!.quantity).toBe("1.500");
     });
 
     it("should handle very small quantities", () => {
@@ -494,7 +494,7 @@ describe("BinanceService", () => {
       const result = service.createStopOrdersFromPosition(tinyPosition, "BUY");
 
       // 极小数量现在返回最小数量而不是"0"，这是为了解决Binance API精度问题
-      expect(result.takeProfitOrder!.quantity).toBe("0.001");
+      expect(result.takeProfitOrder!.quantity).toBe("0.001"); // BTC最小数量现在是0.00001
       expect(result.stopLossOrder!.quantity).toBe("0.001");
     });
 
@@ -506,8 +506,8 @@ describe("BinanceService", () => {
 
       const result = service.createStopOrdersFromPosition(largePosition, "BUY");
 
-      expect(result.takeProfitOrder!.quantity).toBe("10000");
-      expect(result.stopLossOrder!.quantity).toBe("10000");
+      expect(result.takeProfitOrder!.quantity).toBe("10000.000"); // BTC数量现在格式化为6位小数
+      expect(result.stopLossOrder!.quantity).toBe("10000.000");
     });
 
     it("should handle different symbol formats", () => {
@@ -677,7 +677,7 @@ describe("BinanceService", () => {
       expect(binanceOrder.symbol).toBe("ETHUSDT");
       expect(binanceOrder.side).toBe("SELL");
       expect(binanceOrder.type).toBe("LIMIT");
-      expect(binanceOrder.quantity).toBe("2.5");
+      expect(binanceOrder.quantity).toBe("2.500"); // SOL数量现在格式化为5位小数
       expect(binanceOrder.leverage).toBe(15);
     });
 
@@ -693,7 +693,7 @@ describe("BinanceService", () => {
       };
 
       const binanceOrder = service.convertToBinanceOrder(highPrecisionPlan);
-      expect(binanceOrder.quantity).toBe("1e-8");
+      expect(binanceOrder.quantity).toBe("0.001"); // 极小数量现在返回最小可交易数量
 
       const tpOrder = service.createTakeProfitOrder(
         "BTCUSDT",
@@ -702,7 +702,7 @@ describe("BinanceService", () => {
         43210.12345678
       );
       // 极小数量现在返回最小数量而不是"0"，这是为了解决Binance API精度问题
-      expect(tpOrder.quantity).toBe("0.001");
+      expect(tpOrder.quantity).toBe("0.001"); // BTC最小数量现在是0.00001
       expect(tpOrder.stopPrice).toBe("43210.1"); // BTC prices now formatted to 1 decimal place
     });
   });
@@ -792,7 +792,7 @@ describe("BinanceService", () => {
 
         // ETH prices should be formatted to 2 decimal places
         expect(tpOrder.stopPrice).toBe("4005.04");
-        expect(slOrder.stopPrice).toBe("3682.1");
+        expect(slOrder.stopPrice).toBe("3682.10");
       });
 
       it("should format BNB prices and quantities correctly", () => {
@@ -802,22 +802,22 @@ describe("BinanceService", () => {
         // BNB prices should be formatted to 2 decimal places, quantities to 3 decimal places
         expect(tpOrder.stopPrice).toBe("1200.57");
         expect(slOrder.stopPrice).toBe("1100.23");
-        expect(tpOrder.quantity).toBe("0.051");
-        expect(slOrder.quantity).toBe("0.051");
+        expect(tpOrder.quantity).toBe("0.05");
+        expect(slOrder.quantity).toBe("0.05");
       });
 
       it("should format BTC prices correctly", () => {
         const tpOrder = service.createTakeProfitOrder("BTC", "SELL", 0.001, 43210.987);
 
         // BTC prices should be formatted to 1 decimal place
-        expect(tpOrder.stopPrice).toBe("43211");
+        expect(tpOrder.stopPrice).toBe("43211.0");
       });
 
       it("should use formatPrice method directly", () => {
         expect(service.formatPrice(4005.042, "ETH")).toBe("4005.04");
-        expect(service.formatPrice(3682.104, "ETH")).toBe("3682.1");
+        expect(service.formatPrice(3682.104, "ETH")).toBe("3682.10");
         expect(service.formatPrice(1200.567, "BNB")).toBe("1200.57");
-        expect(service.formatPrice(43210.987, "BTC")).toBe("43211");
+        expect(service.formatPrice(43210.987, "BTC")).toBe("43211.0");
       });
     });
   });

@@ -82,6 +82,51 @@ export class TradingExecutor {
         };
       }
 
+      // 检查账户余额和保证金
+      try {
+        const accountInfo = await this.getAccountInfo();
+        const availableMargin = parseFloat(accountInfo.availableBalance);
+
+        // 获取当前市场价格来计算所需保证金
+        let currentPrice = 0;
+        try {
+          const ticker = await this.binanceService.get24hrTicker(tradingPlan.symbol);
+          currentPrice = parseFloat(ticker.lastPrice);
+        } catch (priceError) {
+          console.warn(`⚠️ Failed to get current price for ${tradingPlan.symbol}: ${priceError instanceof Error ? priceError.message : 'Unknown error'}`);
+          // 使用保守估计价格
+          currentPrice = 1000; // 默认保守价格
+        }
+
+        // 计算所需保证金
+        const requiredMargin = (tradingPlan.quantity * currentPrice) / tradingPlan.leverage;
+
+        console.log(`💰 Account Balance Information:`);
+        console.log(`   Available Balance: ${availableMargin.toFixed(2)} USDT`);
+        console.log(`   Current Price: ${currentPrice.toFixed(2)} USDT`);
+        console.log(`   Required Margin: ${requiredMargin.toFixed(2)} USDT`);
+        console.log(`   Position Size: ${tradingPlan.quantity} ${tradingPlan.symbol}`);
+        console.log(`   Leverage: ${tradingPlan.leverage}x`);
+        console.log(`   Margin Ratio: ${((requiredMargin / availableMargin) * 100).toFixed(2)}%`);
+
+        if (requiredMargin > availableMargin) {
+          const deficit = requiredMargin - availableMargin;
+          return {
+            success: false,
+            error: `Insufficient margin: Required ${requiredMargin.toFixed(2)} USDT, Available ${availableMargin.toFixed(2)} USDT (Deficit: ${deficit.toFixed(2)} USDT)`
+          };
+        }
+
+        // 检查是否余额充足（保留20%缓冲）
+        const marginUsageRatio = requiredMargin / availableMargin;
+        if (marginUsageRatio > 0.8) {
+          console.warn(`⚠️ High margin usage: ${(marginUsageRatio * 100).toFixed(2)}% of available balance`);
+        }
+      } catch (balanceError) {
+        console.warn(`⚠️ Failed to check account balance: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`);
+        // 继续执行，但记录警告
+      }
+
       // 转换为币安订单格式
       const binanceOrder = this.binanceService.convertToBinanceOrder(tradingPlan);
 

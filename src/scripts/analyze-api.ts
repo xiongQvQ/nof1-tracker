@@ -4,6 +4,7 @@ import { RiskManager, PriceToleranceCheck } from "../services/risk-manager";
 import { FuturesCapitalManager, CapitalAllocationResult } from "../services/futures-capital-manager";
 import { OrderHistoryManager } from "../services/order-history-manager";
 import { TradingExecutor } from "../services/trading-executor";
+import { BinanceService } from "../services/binance-service";
 import axios from "axios";
 
 /**
@@ -11,9 +12,9 @@ import axios from "axios";
  * 基于固定的初始时间点计算真实的小时数
  */
 function getCurrentLastHourlyMarker(): number {
-  // 固定的初始时间点：2025-10-17T22:34:28.941Z
+  // 固定的初始时间点：2025-10-17T22:00:00.941Z
   // 这个时间点对应 marker=0，之后每经过一小时，marker 增加 1
-  const INITIAL_TIME = new Date('2025-10-17T22:34:28.941Z');
+  const INITIAL_TIME = new Date('2025-10-17T22:00:00.000Z');
 
   // 当前时间
   const now = new Date();
@@ -24,10 +25,10 @@ function getCurrentLastHourlyMarker(): number {
   // 当前的 marker 就是从初始时间到现在经过的小时数
   const currentMarker = hoursSinceInitial;
 
-  console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker}`);
-  console.log(`📅 Fixed initial time: ${INITIAL_TIME.toISOString()}`);
-  console.log(`📅 Current time: ${now.toISOString()}`);
-  console.log(`📅 Hours since initial: ${hoursSinceInitial}`);
+  // console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker}`);
+  // console.log(`📅 Fixed initial time: ${INITIAL_TIME.toISOString()}`);
+  // console.log(`📅 Current time: ${now.toISOString()}`);
+  // console.log(`📅 Hours since initial: ${hoursSinceInitial}`);
 
   return currentMarker;
 }
@@ -92,6 +93,7 @@ export class ApiAnalyzer {
   private capitalManager: FuturesCapitalManager;
   private orderHistoryManager: OrderHistoryManager;
   private tradingExecutor: TradingExecutor;
+  private binanceService: BinanceService;
 
   constructor(
     baseUrl: string = "https://nof1.ai/api",
@@ -103,6 +105,10 @@ export class ApiAnalyzer {
     this.capitalManager = new FuturesCapitalManager();
     this.orderHistoryManager = new OrderHistoryManager();
     this.tradingExecutor = new TradingExecutor();
+    this.binanceService = new BinanceService(
+      process.env.BINANCE_API_KEY || "",
+      process.env.BINANCE_API_SECRET || ""
+    );
 
     // Load configuration from environment
     this.configManager.loadFromEnvironment();
@@ -148,33 +154,89 @@ export class ApiAnalyzer {
   }
 
   /**
-   * 执行实际的平仓操作
+   * 执行实际的平仓操作 - 清理指定币种的所有仓位和挂单
    */
-  private async executePositionClose(position: Position, reason: string): Promise<boolean> {
+  private async executePositionClose(symbol: string, reason: string): Promise<boolean> {
     try {
-      console.log(`🔄 CLOSING POSITION: ${position.symbol} ${position.quantity > 0 ? 'SELL' : 'BUY'} ${Math.abs(position.quantity)} - ${reason}`);
+      console.log(`🔄 CLOSING ALL POSITIONS: ${symbol} - ${reason}`);
 
-      const closePlan: TradingPlan = {
-        id: `close_${position.symbol}_${Date.now()}`,
-        symbol: position.symbol,
-        side: position.quantity > 0 ? "SELL" : "BUY", // 平仓方向与仓位相反
-        type: "MARKET",
-        quantity: Math.abs(position.quantity),
-        leverage: position.leverage,
-        timestamp: Date.now()
-      };
+      // 1. 获取该币种的所有仓位
+      const positions = await this.binanceService.getPositions();
+      const symbolPositions = positions.filter(p => p.symbol === this.binanceService.convertSymbol(symbol));
 
-      const result = await this.tradingExecutor.executePlan(closePlan);
+      // 2. 获取该币种的所有未成交挂单
+      const openOrders = await this.binanceService.getOpenOrders(symbol);
 
-      if (result.success) {
-        console.log(`✅ Position closed successfully: ${position.symbol} (Order ID: ${result.orderId})`);
-        return true;
-      } else {
-        console.error(`❌ Failed to close position: ${position.symbol} - ${result.error}`);
-        return false;
+      console.log(`📊 Found ${symbolPositions.length} position(s) and ${openOrders.length} open order(s) for ${symbol}`);
+
+      // 3. 如果有挂单，先取消所有挂单
+      if (openOrders.length > 0) {
+        console.log(`❌ Canceling ${openOrders.length} open orders for ${symbol}...`);
+        try {
+          await this.binanceService.cancelAllOrders(symbol);
+          console.log(`✅ All open orders cancelled for ${symbol}`);
+        } catch (error) {
+          console.error(`❌ Failed to cancel orders for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          return false;
+        }
       }
+
+      // 4. 如果有仓位，逐一平掉
+      let closedPositions = 0;
+      for (const position of symbolPositions) {
+        const positionSize = parseFloat(position.positionAmt);
+        if (Math.abs(positionSize) > 0) {
+          console.log(`📈 Closing position: ${position.symbol} ${positionSize > 0 ? 'SELL' : 'BUY'} ${Math.abs(positionSize)}`);
+
+          const closePlan: TradingPlan = {
+            id: `close_${position.symbol}_${Date.now()}`,
+            symbol: position.symbol,
+            side: positionSize > 0 ? "SELL" : "BUY", // 平仓方向与仓位相反
+            type: "MARKET",
+            quantity: Math.abs(positionSize),
+            leverage: parseInt(position.leverage),
+            timestamp: Date.now()
+          };
+
+          try {
+            const result = await this.tradingExecutor.executePlan(closePlan);
+            if (result.success) {
+              console.log(`✅ Position closed successfully: ${position.symbol} (Order ID: ${result.orderId})`);
+              closedPositions++;
+            } else {
+              console.error(`❌ Failed to close position: ${position.symbol} - ${result.error}`);
+            }
+          } catch (error) {
+            console.error(`❌ Error closing position ${position.symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+      }
+
+      // 5. 验证平仓是否成功
+      if (symbolPositions.length > 0) {
+        console.log(`🔍 Verifying all positions are closed for ${symbol}...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒让交易确认
+
+        const finalPositions = await this.binanceService.getPositions();
+        const remainingPositions = finalPositions.filter(p =>
+          p.symbol === this.binanceService.convertSymbol(symbol) &&
+          parseFloat(p.positionAmt) !== 0
+        );
+
+        if (remainingPositions.length === 0) {
+          console.log(`✅ All positions successfully closed for ${symbol} (${closedPositions}/${symbolPositions.length})`);
+          return true;
+        } else {
+          console.error(`❌ Some positions still remain open for ${symbol}: ${remainingPositions.length} positions`);
+          return false;
+        }
+      } else {
+        console.log(`✅ No positions to close for ${symbol}`);
+        return true;
+      }
+
     } catch (error) {
-      console.error(`❌ Error closing position ${position.symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`❌ Error in executePositionClose for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return false;
     }
   }
@@ -260,25 +322,9 @@ export class ApiAnalyzer {
 
       // 如果之前有仓位，且entry_oid发生变化（新入场订单）
       if (prevPosition && prevPosition.entry_oid !== position.entry_oid && position.quantity !== 0) {
-        // 先平仓旧仓位
-        const exitPlan: FollowPlan = {
-          action: "EXIT",
-          symbol: position.symbol,
-          side: prevPosition.quantity > 0 ? "SELL" : "BUY",
-          type: "MARKET",
-          quantity: Math.abs(prevPosition.quantity),
-          leverage: prevPosition.leverage,
-          exitPrice: position.current_price,
-          reason: `Entry order changed (old: ${prevPosition.entry_oid} → new: ${position.entry_oid}) - closing old position`,
-          agent: agentId,
-          timestamp: Date.now()
-        };
-        followPlans.push(exitPlan);
-        console.log(`🔄 ENTRY OID CHANGED: ${position.symbol} - executing position change (${prevPosition.entry_oid} → ${position.entry_oid})`);
-
         // 先平仓旧仓位 (实际执行)
         const closeReason = `Entry order changed (old: ${prevPosition.entry_oid} → new: ${position.entry_oid}) - closing old position`;
-        const closeSuccess = await this.executePositionClose(prevPosition, closeReason);
+        const closeSuccess = await this.executePositionClose(prevPosition.symbol, closeReason);
 
         if (closeSuccess) {
           // 等待一小段时间确保平仓完成

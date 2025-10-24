@@ -52,12 +52,17 @@ export class FuturesCapitalManager {
       const adjustedQuantity = notionalValue / position.current_price;
       const side = position.quantity > 0 ? "BUY" : "SELL";
 
+      // 去掉小数部分：直接截断小数，不四舍五入
+      const roundedAllocatedMargin = Math.floor(allocatedMargin);
+      const roundedNotionalValue = Math.floor(notionalValue);
+      const roundedAdjustedQuantity = this.roundQuantity(adjustedQuantity, position.symbol);
+
       return {
         symbol: position.symbol,
         originalMargin: position.margin,
-        allocatedMargin,
-        notionalValue,
-        adjustedQuantity,
+        allocatedMargin: roundedAllocatedMargin,
+        notionalValue: roundedNotionalValue,
+        adjustedQuantity: roundedAdjustedQuantity,
         allocationRatio,
         leverage: position.leverage,
         side
@@ -113,16 +118,45 @@ export class FuturesCapitalManager {
   }
 
   /**
+   * 根据交易对精度格式化数量
+   */
+  private roundQuantity(quantity: number, symbol: string): number {
+    // 数量精度映射，基于各个币种的最小交易单位
+    const quantityPrecisionMap: Record<string, number> = {
+      'BTCUSDT': 3,      // BTC: 保留3位小数，最小0.001
+      'ETHUSDT': 3,      // ETH: 保留3位小数，最小0.001
+      'BNBUSDT': 2,      // BNB: 保留2位小数，最小0.01
+      'XRPUSDT': 1,      // XRP: 保留1位小数，最小0.1
+      'ADAUSDT': 0,      // ADA: 保留0位小数，最小1
+      'DOGEUSDT': 0,     // DOGE: 保留0位小数，最小10
+      'SOLUSDT': 2,      // SOL: 保留2位小数，最小0.01
+      'AVAXUSDT': 2,     // AVAX: 保留2位小数，最小0.01
+      'MATICUSDT': 1,    // MATIC: 保留1位小数，最小0.1
+      'DOTUSDT': 2,      // DOT: 保留2位小数，最小0.01
+      'LINKUSDT': 2,     // LINK: 保留2位小数，最小0.01
+      'UNIUSDT': 2,      // UNI: 保留2位小数，最小0.01
+    };
+
+    // 转换为币安格式
+    const binanceSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
+    const precision = quantityPrecisionMap[binanceSymbol] || 3;
+
+    // 使用Math.round进行取整，避免浮点数精度问题
+    const factor = Math.pow(10, precision);
+    return Math.round(quantity * factor) / factor;
+  }
+
+  /**
    * 验证分配结果
    */
   validateAllocation(result: CapitalAllocationResult): boolean {
-    // 检查总分配保证金是否等于预期总保证金（允许小数点误差）
+    // 检查总分配保证金是否等于预期总保证金（取整后允许较大误差）
     const expectedMargin = result.totalAllocatedMargin;
     const actualMargin = this.defaultTotalMargin;
     const difference = Math.abs(expectedMargin - actualMargin);
 
-    if (difference > 0.01) { // 允许1分钱的误差
-      console.warn(`Margin allocation mismatch: expected ${actualMargin}, got ${expectedMargin}`);
+    if (difference > 10) { // 由于向下取整，允许更大的误差
+      console.warn(`Margin allocation mismatch: expected ${actualMargin}, got ${expectedMargin}, difference: ${difference}`);
       return false;
     }
 

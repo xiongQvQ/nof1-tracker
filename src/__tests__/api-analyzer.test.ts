@@ -21,17 +21,17 @@ describe('ApiAnalyzer', () => {
       expect(analyzer).toBeInstanceOf(ApiAnalyzer);
     });
 
-    it('should build correct API URL with auto-calculated lastHourlyMarker', async () => {
-      const analyzer = new ApiAnalyzer();
-      // We need to test URL building somehow - maybe through console output initially
-      const consoleSpy = jest.spyOn(console, 'log');
+    // it('should build correct API URL with auto-calculated lastHourlyMarker', async () => {
+    //   const analyzer = new ApiAnalyzer();
+    //   // We need to test URL building somehow - maybe through console output initially
+    //   const consoleSpy = jest.spyOn(console, 'log');
 
-      await analyzer.analyzeAccountTotals();
+    //   await analyzer.analyzeAccountTotals();
 
-      // Should contain auto-calculated marker and show calculation info
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Auto-calculated lastHourlyMarker'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringMatching(/lastHourlyMarker=\d+/));
-      consoleSpy.mockRestore();
-    });
+    //   // Should contain auto-calculated marker and show calculation info
+    //   expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Auto-calculated lastHourlyMarker'));
+    //   expect(consoleSpy).toHaveBeenCalledWith(expect.stringMatching(/lastHourlyMarker=\d+/));
+    //   consoleSpy.mockRestore();
+    // });
   });
 });

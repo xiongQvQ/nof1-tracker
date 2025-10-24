@@ -113,7 +113,7 @@ export class BinanceService {
   /**
    * Convert symbol from nof1 format (BTC) to Binance format (BTCUSDT)
    */
-  private convertSymbol(symbol: string): string {
+  public convertSymbol(symbol: string): string {
     // If symbol already ends with USDT, return as is
     if (symbol.endsWith('USDT')) {
       return symbol;
@@ -128,20 +128,20 @@ export class BinanceService {
   public formatQuantity(quantity: number | string, symbol: string): string {
     const baseSymbol = this.convertSymbol(symbol);
 
-    // Updated precision map based on Binance futures requirements
+    // Updated precision map based on actual Binance futures API specifications
     const precisionMap: Record<string, number> = {
-      'BTCUSDT': 3,      // BTC futures: 3 decimal places (min 0.001)
-      'ETHUSDT': 3,      // ETH futures: 3 decimal places (min 0.001)
-      'BNBUSDT': 3,      // BNB futures: 3 decimal places (min 0.001)
-      'XRPUSDT': 1,      // XRP futures: 1 decimal place (min 0.1)
-      'ADAUSDT': 0,      // ADA futures: 0 decimal places (min 1)
-      'DOGEUSDT': 0,     // DOGE futures: 0 decimal places (min 1)
-      'SOLUSDT': 2,      // SOL futures: 2 decimal places (min 0.01)
-      'AVAXUSDT': 2,     // AVAX futures: 2 decimal places (min 0.01)
-      'MATICUSDT': 1,    // MATIC futures: 1 decimal place (min 0.1)
-      'DOTUSDT': 2,      // DOT futures: 2 decimal places (min 0.01)
-      'LINKUSDT': 2,     // LINK futures: 2 decimal places (min 0.01)
-      'UNIUSDT': 2,      // UNI futures: 2 decimal places (min 0.01)
+      'BTCUSDT': 3,      // BTC futures: 3 decimal places (min 0.001, step 0.001)
+      'ETHUSDT': 3,      // ETH futures: 3 decimal places (min 0.001, step 0.001)
+      'BNBUSDT': 2,      // BNB futures: 2 decimal places (min 0.01, step 0.01)
+      'XRPUSDT': 1,      // XRP futures: 1 decimal place (min 0.1, step 0.1)
+      'ADAUSDT': 0,      // ADA futures: 0 decimal places (min 1, step 1)
+      'DOGEUSDT': 0,     // DOGE futures: 0 decimal places (min 1, step 1)
+      'SOLUSDT': 2,      // SOL futures: 2 decimal places (min 0.01, step 0.01)
+      'AVAXUSDT': 2,     // AVAX futures: 2 decimal places (min 0.01, step 0.01)
+      'MATICUSDT': 1,    // MATIC futures: 1 decimal place (min 0.1, step 0.1)
+      'DOTUSDT': 2,      // DOT futures: 2 decimal places (min 0.01, step 0.01)
+      'LINKUSDT': 2,     // LINK futures: 2 decimal places (min 0.01, step 0.01)
+      'UNIUSDT': 2,      // UNI futures: 2 decimal places (min 0.01, step 0.01)
     };
 
     const precision = precisionMap[baseSymbol] || 3; // Default to 3 decimal places
@@ -149,20 +149,20 @@ export class BinanceService {
     // Convert to number if it's a string
     const quantityNum = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
 
-    // Define minimum quantities based on symbol
+    // Define minimum quantities based on actual Binance futures API specifications
     const minQtyMap: Record<string, number> = {
-      'BTCUSDT': 0.001,
-      'ETHUSDT': 0.001,
-      'BNBUSDT': 0.001,
-      'XRPUSDT': 0.1,
-      'ADAUSDT': 1,
-      'DOGEUSDT': 10,
-      'SOLUSDT': 0.01,
-      'AVAXUSDT': 0.01,
-      'MATICUSDT': 0.1,
-      'DOTUSDT': 0.01,
-      'LINKUSDT': 0.01,
-      'UNIUSDT': 0.01,
+      'BTCUSDT': 0.001,     // BTC futures min: 0.001
+      'ETHUSDT': 0.001,     // ETH futures min: 0.001
+      'BNBUSDT': 0.01,      // BNB futures min: 0.01
+      'XRPUSDT': 0.1,       // XRP futures min: 0.1
+      'ADAUSDT': 1,         // ADA futures min: 1
+      'DOGEUSDT': 10,       // DOGE futures min: 10
+      'SOLUSDT': 0.01,      // SOL futures min: 0.01
+      'AVAXUSDT': 0.01,     // AVAX futures min: 0.01
+      'MATICUSDT': 0.1,     // MATIC futures min: 0.1
+      'DOTUSDT': 0.01,      // DOT futures min: 0.01
+      'LINKUSDT': 0.01,     // LINK futures min: 0.01
+      'UNIUSDT': 0.01,      // UNI futures min: 0.01
     };
 
     const minQty = minQtyMap[baseSymbol] || 0.001;
@@ -180,9 +180,9 @@ export class BinanceService {
     // Ensure we don't go below minimum
     const finalQuantity = Math.max(roundedQuantity, minQty);
 
-    // Format to correct precision and remove trailing zeros
+    // Format to correct precision - keep trailing zeros for precision requirements
     const formattedQuantity = finalQuantity.toFixed(precision);
-    return formattedQuantity.replace(/\.?0+$/, '');
+    return formattedQuantity;
   }
 
   /**
@@ -211,9 +211,9 @@ export class BinanceService {
     // Convert to number if it's a string
     const priceNum = typeof price === 'string' ? parseFloat(price) : price;
 
-    // Format to correct precision and remove trailing zeros
+    // Format to correct precision - keep trailing zeros for precision requirements
     const formattedPrice = priceNum.toFixed(precision);
-    return formattedPrice.replace(/\.?0+$/, '');
+    return formattedPrice;
   }
 
   /**
@@ -447,7 +447,7 @@ export class BinanceService {
       symbol: tradingPlan.symbol,
       side: tradingPlan.side,
       type: tradingPlan.type,
-      quantity: tradingPlan.quantity.toString(),
+      quantity: this.formatQuantity(tradingPlan.quantity, tradingPlan.symbol),
       leverage: tradingPlan.leverage
     };
   }

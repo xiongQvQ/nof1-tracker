@@ -315,7 +315,7 @@ program
             console.log(`\n${i + 1}. ${plan.symbol} - ${plan.action}`);
             console.log(`   Side: ${plan.side}`);
             console.log(`   Type: ${plan.type}`);
-            console.log(`   Quantity: ${plan.quantity}`);
+            console.log(`   Quantity: ${plan.quantity.toFixed(6)}`);
             console.log(`   Leverage: ${plan.leverage}x`);
             if (plan.entryPrice) console.log(`   Entry Price: ${plan.entryPrice}`);
             if (plan.exitPrice) console.log(`   Exit Price: ${plan.exitPrice}`);
