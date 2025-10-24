@@ -4,6 +4,29 @@ import { RiskManager, PriceToleranceCheck } from "../services/risk-manager";
 import { FuturesCapitalManager, CapitalAllocationResult } from "../services/futures-capital-manager";
 import axios from "axios";
 
+/**
+ * 自动计算当前的 lastHourlyMarker
+ * 基于已知的基准点自动递增
+ */
+function getCurrentLastHourlyMarker(): number {
+  // 基准时间：2024年10月24日，marker = 147
+  const baseDate = new Date('2024-10-24T00:00:00Z');
+  const baseMarker = 147;
+
+  // 当前时间
+  const now = new Date();
+
+  // 计算经过的小时数
+  const hoursDiff = Math.floor((now.getTime() - baseDate.getTime()) / (1000 * 60 * 60));
+
+  // 计算当前的 marker
+  const currentMarker = baseMarker + hoursDiff;
+
+  console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker} (based on ${hoursDiff} hours since base)`);
+
+  return currentMarker;
+}
+
 export interface Position {
   symbol: string;
   entry_price: number;
@@ -77,7 +100,9 @@ export class ApiAnalyzer {
   }
 
   async analyzeAccountTotals(): Promise<TradingPlan[]> {
-    const url = "https://nof1.ai/api/account-totals?lastHourlyMarker=134";
+    // 自动计算当前的 marker
+    const marker = getCurrentLastHourlyMarker();
+    const url = `https://nof1.ai/api/account-totals?lastHourlyMarker=${marker}`;
 
     console.log(`📡 Calling API: ${url}`);
     const response = await axios.get<Nof1Response>(url);
@@ -117,7 +142,9 @@ export class ApiAnalyzer {
    * 跟单特定AI Agent
    */
   async followAgent(agentId: string, totalMargin?: number): Promise<FollowPlan[]> {
-    const url = "https://nof1.ai/api/account-totals?lastHourlyMarker=134";
+    // 自动计算当前的 marker
+    const marker = getCurrentLastHourlyMarker();
+    const url = `https://nof1.ai/api/account-totals?lastHourlyMarker=${marker}`;
 
     console.log(`🤖 Following agent: ${agentId}`);
     console.log(`📡 Calling API: ${url}`);
@@ -282,7 +309,9 @@ export class ApiAnalyzer {
    * 获取所有可用的AI Agent列表
    */
   async getAvailableAgents(): Promise<string[]> {
-    const url = "https://nof1.ai/api/account-totals?lastHourlyMarker=134";
+    // 自动计算当前的 marker
+    const marker = getCurrentLastHourlyMarker();
+    const url = `https://nof1.ai/api/account-totals?lastHourlyMarker=${marker}`;
     console.log(`📡 Fetching available agents from: ${url}`);
 
     const response = await axios.get<Nof1Response>(url);

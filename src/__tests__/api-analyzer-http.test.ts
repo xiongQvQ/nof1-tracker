@@ -45,7 +45,7 @@ describe("ApiAnalyzer HTTP Requests", () => {
     const result = await analyzer.analyzeAccountTotals();
 
     expect(mockedAxios.get).toHaveBeenCalledWith(
-      "https://nof1.ai/api/account-totals?lastHourlyMarker=134"
+      expect.stringMatching(/https:\/\/nof1\.ai\/api\/account-totals\?lastHourlyMarker=\d+/)
     );
     expect(Array.isArray(result)).toBe(true);
   });
@@ -99,7 +99,7 @@ describe("ApiAnalyzer HTTP Requests", () => {
     const result = await analyzer.analyzeAccountTotals();
 
     expect(mockedAxios.get).toHaveBeenCalledWith(
-      "https://nof1.ai/api/account-totals?lastHourlyMarker=134"
+      expect.stringMatching(/https:\/\/nof1\.ai\/api\/account-totals\?lastHourlyMarker=\d+/)
     );
 
     expect(Array.isArray(result)).toBe(true);
