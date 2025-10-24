@@ -46,6 +46,8 @@ describe('FollowService', () => {
   };
 
   beforeEach(() => {
+    // 使用 fake timers 加速测试
+    jest.useFakeTimers();
     // Create mocked instances
     mockPositionManager = new PositionManager(null as any, null as any, null as any) as jest.Mocked<PositionManager>;
     mockOrderHistoryManager = new OrderHistoryManager() as jest.Mocked<OrderHistoryManager>;
@@ -98,6 +100,8 @@ describe('FollowService', () => {
     console.error = originalConsoleError;
     console.warn = originalConsoleWarn;
     jest.clearAllMocks();
+    // 恢复真实 timers
+    jest.useRealTimers();
   });
 
   describe('Constructor', () => {
@@ -151,7 +155,11 @@ describe('FollowService', () => {
 
       // Second call with changed entry_oid
       const changedPosition: Position = { ...mockPosition, entry_oid: 67890 };
-      const result = await followService.followAgent(agentId, [changedPosition]);
+      const resultPromise = followService.followAgent(agentId, [changedPosition]);
+      
+      // 快进时间 1000ms
+      await jest.advanceTimersByTimeAsync(1000);
+      const result = await resultPromise;
 
       expect(mockPositionManager.closePosition).toHaveBeenCalled();
       expect(mockPositionManager.openPosition).toHaveBeenCalled();
@@ -213,7 +221,9 @@ describe('FollowService', () => {
       await followService.followAgent('test-agent', [mockPosition]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
-      await followService.followAgent('test-agent', [changedPosition]);
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
 
       expect(mockPositionManager.closePosition).toHaveBeenCalled();
     });
@@ -233,7 +243,9 @@ describe('FollowService', () => {
       await followService.followAgent('test-agent', [mockPosition]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
-      await followService.followAgent('test-agent', [changedPosition]);
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
 
       expect(mockPositionManager.closePosition).toHaveBeenCalledWith('BTCUSDT', expect.any(String));
       expect(mockPositionManager.openPosition).toHaveBeenCalled();
@@ -245,7 +257,9 @@ describe('FollowService', () => {
       await followService.followAgent('test-agent', [mockPosition]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
-      await followService.followAgent('test-agent', [changedPosition]);
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
 
       expect(mockPositionManager.openPosition).not.toHaveBeenCalled();
     });
@@ -264,7 +278,9 @@ describe('FollowService', () => {
       await followService.followAgent('test-agent', [mockPosition]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
-      await followService.followAgent('test-agent', [changedPosition]);
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
 
       expect(mockPositionManager.openPosition).not.toHaveBeenCalled();
     });
@@ -275,7 +291,9 @@ describe('FollowService', () => {
       await followService.followAgent('test-agent', [mockPosition]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
-      await followService.followAgent('test-agent', [changedPosition]);
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
 
       expect(mockPositionManager.openPosition).not.toHaveBeenCalled();
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Failed to close old position'));
@@ -287,7 +305,9 @@ describe('FollowService', () => {
       await followService.followAgent('test-agent', [mockPosition]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
-      await followService.followAgent('test-agent', [changedPosition]);
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
 
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Failed to open new position'));
     });
