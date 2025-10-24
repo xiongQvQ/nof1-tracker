@@ -6,27 +6,26 @@ import axios from "axios";
 
 /**
  * 自动计算当前的 lastHourlyMarker
- * 基于已知的时间点和 marker 值，按小时递增
+ * 基于当前时间往前推 147 小时作为初始时间点
  */
 function getCurrentLastHourlyMarker(): number {
-  // 已知：2024年10月24日某个时间点，marker = 147
-  // 假设这个已知时间点是今天的某个时刻
-  const knownDate = new Date('2024-10-24T12:00:00Z'); // 假设是中午12点
-  const knownMarker = 147;
-
   // 当前时间
   const now = new Date();
 
-  // 计算从已知时间到现在经过了多少小时
-  const hoursDiff = Math.floor((now.getTime() - knownDate.getTime()) / (1000 * 60 * 60));
+  // 初始时间：当前时间往前推 147 小时
+  // 因为当 marker=147 时，就是从初始时间开始经过了 147 小时
+  const initialTime = new Date(now.getTime() - (147 * 60 * 60 * 1000));
 
-  // 当前的 marker = 已知 marker + 经过的小时数
-  const currentMarker = knownMarker + hoursDiff;
+  // 计算从初始时间到现在经过了多少小时
+  const hoursSinceInitial = Math.floor((now.getTime() - initialTime.getTime()) / (1000 * 60 * 60));
+
+  // 当前的 marker 就是从初始时间到现在经过的小时数
+  const currentMarker = hoursSinceInitial;
 
   console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker}`);
-  console.log(`📅 Known time: ${knownDate.toISOString()} (marker: ${knownMarker})`);
+  console.log(`📅 Initial time: ${initialTime.toISOString()}`);
   console.log(`📅 Current time: ${now.toISOString()}`);
-  console.log(`📅 Hours passed: ${hoursDiff}`);
+  console.log(`📅 Hours since initial: ${hoursSinceInitial}`);
 
   return currentMarker;
 }
