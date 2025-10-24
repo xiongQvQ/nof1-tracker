@@ -3,6 +3,7 @@ import { ConfigManager } from "../services/config-manager";
 import { RiskManager, PriceToleranceCheck } from "../services/risk-manager";
 import { FuturesCapitalManager, CapitalAllocationResult } from "../services/futures-capital-manager";
 import { OrderHistoryManager } from "../services/order-history-manager";
+import { TradingExecutor } from "../services/trading-executor";
 import axios from "axios";
 
 /**
@@ -90,6 +91,7 @@ export class ApiAnalyzer {
   private riskManager: RiskManager;
   private capitalManager: FuturesCapitalManager;
   private orderHistoryManager: OrderHistoryManager;
+  private tradingExecutor: TradingExecutor;
 
   constructor(
     baseUrl: string = "https://nof1.ai/api",
@@ -100,6 +102,7 @@ export class ApiAnalyzer {
     this.riskManager = new RiskManager(this.configManager);
     this.capitalManager = new FuturesCapitalManager();
     this.orderHistoryManager = new OrderHistoryManager();
+    this.tradingExecutor = new TradingExecutor();
 
     // Load configuration from environment
     this.configManager.loadFromEnvironment();
@@ -142,6 +145,78 @@ export class ApiAnalyzer {
 
     console.log(`✅ Generated ${tradingPlans.length} trading plan(s) from API data`);
     return tradingPlans;
+  }
+
+  /**
+   * 执行实际的平仓操作
+   */
+  private async executePositionClose(position: Position, reason: string): Promise<boolean> {
+    try {
+      console.log(`🔄 CLOSING POSITION: ${position.symbol} ${position.quantity > 0 ? 'SELL' : 'BUY'} ${Math.abs(position.quantity)} - ${reason}`);
+
+      const closePlan: TradingPlan = {
+        id: `close_${position.symbol}_${Date.now()}`,
+        symbol: position.symbol,
+        side: position.quantity > 0 ? "SELL" : "BUY", // 平仓方向与仓位相反
+        type: "MARKET",
+        quantity: Math.abs(position.quantity),
+        leverage: position.leverage,
+        timestamp: Date.now()
+      };
+
+      const result = await this.tradingExecutor.executePlan(closePlan);
+
+      if (result.success) {
+        console.log(`✅ Position closed successfully: ${position.symbol} (Order ID: ${result.orderId})`);
+        return true;
+      } else {
+        console.error(`❌ Failed to close position: ${position.symbol} - ${result.error}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error closing position ${position.symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return false;
+    }
+  }
+
+  /**
+   * 执行实际的开仓操作
+   */
+  private async executePositionOpen(position: Position, reason: string, agentId: string): Promise<boolean> {
+    try {
+      console.log(`📈 OPENING POSITION: ${position.symbol} ${position.quantity > 0 ? 'BUY' : 'SELL'} ${Math.abs(position.quantity)} @ ${position.entry_price} - ${reason}`);
+
+      const openPlan: TradingPlan = {
+        id: `open_${position.symbol}_${Date.now()}`,
+        symbol: position.symbol,
+        side: position.quantity > 0 ? "BUY" : "SELL",
+        type: "MARKET",
+        quantity: Math.abs(position.quantity),
+        leverage: position.leverage,
+        timestamp: Date.now()
+      };
+
+      const result = await this.tradingExecutor.executePlan(openPlan);
+
+      if (result.success) {
+        console.log(`✅ Position opened successfully: ${position.symbol} (Order ID: ${result.orderId})`);
+        // 标记订单已处理
+        this.orderHistoryManager.saveProcessedOrder(
+          position.entry_oid,
+          position.symbol,
+          agentId, // agent 参数
+          position.quantity > 0 ? "BUY" : "SELL", // side 参数
+          Math.abs(position.quantity) // quantity 参数
+        );
+        return true;
+      } else {
+        console.error(`❌ Failed to open position: ${position.symbol} - ${result.error}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error opening position ${position.symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return false;
+    }
   }
 
   /**
@@ -199,39 +274,44 @@ export class ApiAnalyzer {
           timestamp: Date.now()
         };
         followPlans.push(exitPlan);
-        console.log(`🔄 ENTRY OID CHANGED: ${position.symbol} - closing old position (${prevPosition.entry_oid} → ${position.entry_oid})`);
+        console.log(`🔄 ENTRY OID CHANGED: ${position.symbol} - executing position change (${prevPosition.entry_oid} → ${position.entry_oid})`);
 
-        // 再开新仓位
-        const entryPlan: FollowPlan = {
-          action: "ENTER",
-          symbol: position.symbol,
-          side: position.quantity > 0 ? "BUY" : "SELL",
-          type: "MARKET",
-          quantity: Math.abs(position.quantity),
-          leverage: position.leverage,
-          entryPrice: position.entry_price,
-          reason: `New entry order (${position.entry_oid}) by ${agentId}`,
-          agent: agentId,
-          timestamp: Date.now(),
-          position: position // 包含完整的position信息以支持止盈止损设置
-        };
+        // 先平仓旧仓位 (实际执行)
+        const closeReason = `Entry order changed (old: ${prevPosition.entry_oid} → new: ${position.entry_oid}) - closing old position`;
+        const closeSuccess = await this.executePositionClose(prevPosition, closeReason);
 
-        // 检查新订单是否已处理（去重）
-        if (this.orderHistoryManager.isOrderProcessed(position.entry_oid, position.symbol)) {
-          console.log(`🔄 SKIPPED: ${position.symbol} new entry (OID: ${position.entry_oid}) already processed`);
-          // 仍然推送平仓计划，但跳过新开仓计划
+        if (closeSuccess) {
+          // 等待一小段时间确保平仓完成
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // 检查新订单是否已处理（去重）
+          if (this.orderHistoryManager.isOrderProcessed(position.entry_oid, position.symbol)) {
+            console.log(`🔄 SKIPPED: ${position.symbol} new entry (OID: ${position.entry_oid}) already processed`);
+          } else {
+            // 添加价格容忍度检查
+            const priceTolerance = this.riskManager.checkPriceTolerance(
+              position.entry_price,
+              position.current_price,
+              position.symbol
+            );
+
+            if (priceTolerance.shouldExecute) {
+              // 再开新仓位 (实际执行)
+              const openReason = `New entry order (${position.entry_oid}) by ${agentId}`;
+              const openSuccess = await this.executePositionOpen(position, openReason, agentId);
+
+              if (openSuccess) {
+                console.log(`📈 POSITION CHANGE COMPLETED: ${position.symbol} ${position.quantity > 0 ? 'BUY' : 'SELL'} ${Math.abs(position.quantity)} @ ${position.entry_price} (OID: ${position.entry_oid})`);
+                console.log(`💰 Price Check: Entry $${position.entry_price} vs Current $${position.current_price} - ${priceTolerance.reason}`);
+              } else {
+                console.error(`❌ Failed to open new position for ${position.symbol}`);
+              }
+            } else {
+              console.log(`⚠️ SKIPPED: ${position.symbol} - Price not acceptable: ${priceTolerance.reason}`);
+            }
+          }
         } else {
-          // 添加价格容忍度检查
-          const priceTolerance = this.riskManager.checkPriceTolerance(
-            position.entry_price,
-            position.current_price,
-            position.symbol
-          );
-          entryPlan.priceTolerance = priceTolerance;
-
-          followPlans.push(entryPlan);
-          console.log(`📈 NEW ENTRY ORDER: ${position.symbol} ${entryPlan.side} ${entryPlan.quantity} @ ${position.entry_price} (OID: ${position.entry_oid})`);
-          console.log(`💰 Price Check: Entry $${position.entry_price} vs Current $${position.current_price} - ${priceTolerance.reason}`);
+          console.error(`❌ Failed to close old position for ${position.symbol}, skipping new position opening`);
         }
       }
       // 如果没有之前仓位，且数量不为0（新开仓）
