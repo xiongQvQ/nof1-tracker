@@ -423,6 +423,18 @@ export class BinanceService {
   }
 
   /**
+   * 设置保证金模式
+   * @param symbol 交易对
+   * @param marginType ISOLATED(逐仓) 或 CROSSED(全仓)
+   */
+  async setMarginType(symbol: string, marginType: 'ISOLATED' | 'CROSSED'): Promise<any> {
+    return await this.makeSignedRequest('/fapi/v1/marginType', 'POST', {
+      symbol: this.convertSymbol(symbol),
+      marginType: marginType,
+    });
+  }
+
+  /**
    * 取消订单
    */
   async cancelOrder(symbol: string, orderId: number): Promise<OrderResponse> {

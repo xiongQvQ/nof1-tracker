@@ -46,6 +46,7 @@ describe("TradingExecutor", () => {
       updateTime: Date.now()
     });
     mockBinanceService.setLeverage = jest.fn().mockResolvedValue({});
+    mockBinanceService.setMarginType = jest.fn().mockResolvedValue({});
     mockBinanceService.createStopOrdersFromPosition = jest.fn().mockReturnValue({
       takeProfitOrder: null,
       stopLossOrder: null
@@ -839,6 +840,94 @@ describe("TradingExecutor", () => {
       it("should handle setLeverage failure gracefully", async () => {
         mockBinanceService.getServerTime.mockResolvedValue(Date.now());
         mockBinanceService.setLeverage.mockRejectedValue(new Error("Leverage failed"));
+        mockBinanceService.placeOrder.mockResolvedValue({
+          orderId: 123456,
+          symbol: 'BTCUSDT',
+          status: 'FILLED',
+          clientOrderId: 'test-order',
+          price: '50000',
+          avgPrice: '50000',
+          origQty: '0.001',
+          executedQty: '0.001',
+          cumQty: '0.001',
+          cumQuote: '50',
+          timeInForce: 'IOC',
+          type: 'MARKET',
+          reduceOnly: false,
+          closePosition: false,
+          side: 'BUY',
+          positionSide: 'BOTH',
+          stopPrice: '0',
+          workingType: 'CONTRACT_PRICE',
+          priceProtect: false,
+          origType: 'MARKET',
+          time: Date.now(),
+          updateTime: Date.now()
+        });
+
+        const tradingPlan: TradingPlan = {
+          id: "test-plan",
+          symbol: "BTCUSDT",
+          side: "BUY",
+          type: "MARKET",
+          quantity: 0.001,
+          leverage: 10,
+          timestamp: Date.now()
+        };
+
+        const result = await executor.executePlan(tradingPlan);
+
+        expect(result.success).toBe(true);
+        expect(result.orderId).toBe("123456");
+      });
+
+      it("should handle setMarginType failure gracefully", async () => {
+        mockBinanceService.getServerTime.mockResolvedValue(Date.now());
+        mockBinanceService.setMarginType.mockRejectedValue(new Error("Margin type failed"));
+        mockBinanceService.placeOrder.mockResolvedValue({
+          orderId: 123456,
+          symbol: 'BTCUSDT',
+          status: 'FILLED',
+          clientOrderId: 'test-order',
+          price: '50000',
+          avgPrice: '50000',
+          origQty: '0.001',
+          executedQty: '0.001',
+          cumQty: '0.001',
+          cumQuote: '50',
+          timeInForce: 'IOC',
+          type: 'MARKET',
+          reduceOnly: false,
+          closePosition: false,
+          side: 'BUY',
+          positionSide: 'BOTH',
+          stopPrice: '0',
+          workingType: 'CONTRACT_PRICE',
+          priceProtect: false,
+          origType: 'MARKET',
+          time: Date.now(),
+          updateTime: Date.now()
+        });
+
+        const tradingPlan: TradingPlan = {
+          id: "test-plan",
+          symbol: "BTCUSDT",
+          side: "BUY",
+          type: "MARKET",
+          quantity: 0.001,
+          leverage: 10,
+          timestamp: Date.now()
+        };
+
+        const result = await executor.executePlan(tradingPlan);
+
+        expect(result.success).toBe(true);
+        expect(result.orderId).toBe("123456");
+      });
+
+      it("should handle setMarginType 'No need to change' error gracefully", async () => {
+        mockBinanceService.getServerTime.mockResolvedValue(Date.now());
+        mockBinanceService.setMarginType.mockRejectedValue(new Error("No need to change margin type"));
         mockBinanceService.placeOrder.mockResolvedValue({
           orderId: 123456,
           symbol: 'BTCUSDT',

@@ -155,6 +155,21 @@ export class TradingExecutor {
       // 转换为币安订单格式
       const binanceOrder = this.binanceService.convertToBinanceOrder(tradingPlan);
 
+      // 设置保证金模式为逐仓
+      try {
+        await this.binanceService.setMarginType(tradingPlan.symbol, 'ISOLATED');
+        console.log(`✅ Margin type set to ISOLATED for ${tradingPlan.symbol}`);
+      } catch (marginTypeError) {
+        // 如果已经是逐仓模式，API会返回错误，这是正常的，可以忽略
+        const errorMessage = marginTypeError instanceof Error ? marginTypeError.message : 'Unknown error';
+        if (errorMessage.includes('No need to change margin type')) {
+          console.log(`ℹ️ ${tradingPlan.symbol} is already in ISOLATED margin mode`);
+        } else {
+          console.warn(`⚠️ Failed to set margin type: ${errorMessage}`);
+        }
+        // 继续执行，不因为保证金模式设置失败而停止交易
+      }
+
       // 设置杠杆（如果需要）
       try {
         await this.binanceService.setLeverage(tradingPlan.symbol, tradingPlan.leverage);

@@ -46,6 +46,7 @@ describe("TradingExecutor - Enhanced Coverage", () => {
       updateTime: Date.now()
     });
     mockBinanceService.setLeverage = jest.fn().mockResolvedValue({});
+    mockBinanceService.setMarginType = jest.fn().mockResolvedValue({});
     mockBinanceService.getAccountInfo = jest.fn().mockResolvedValue({
       totalWalletBalance: '10000.0',
       availableBalance: '5000.0',
