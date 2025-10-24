@@ -45,8 +45,8 @@ program
   .description('Follow a specific AI agent and copy their trades')
   .option('-r, --risk-only', 'only perform risk assessment without executing trades')
   .option('-i, --interval <seconds>', 'polling interval in seconds for continuous monitoring', '30')
-  .option('-t, --price-tolerance <percentage>', 'set price tolerance threshold (default: 0.5%)', parseFloat)
-  .option('-m, --total-margin <amount>', 'set total margin for futures trading (default: 1000 USDT)', parseFloat)
+  .option('-t, --price-tolerance <percentage>', 'set price tolerance threshold (default: 1%)', parseFloat)
+  .option('-m, --total-margin <amount>', 'set total margin for futures trading (default: 10 USDT)', parseFloat)
   .action(async (agentName, options) => {
     try {
       await handleFollowCommand(agentName, options);

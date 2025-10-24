@@ -38,17 +38,15 @@ npm start -- follow gpt-5 --interval 30
 
 ## 🤖 Supported AI Agents
 
-| Agent Name | Characteristics | Recommended For |
-|----------|------|---------|
-| **gpt-5** | Aggressive strategy, high-frequency trading | Experienced traders |
-| **gemini-2.5-pro** | Balanced strategy | Medium risk preference |
-| **deepseek-chat-v3.1** | Active strategy, short-term trading | Day trading |
-| **claude-sonnet-4-5** | Balanced strategy, steady returns | Long-term holding |
-| **buynhold_btc** | Conservative strategy, long-term holding | Beginners and conservative investors |
-| **grok-4** | Innovative strategy | Exploring new strategies |
-| **qwen3-max** | Steady strategy | Steady investors |
-
-💡 **Tip**: Beginners start with `buynhold_btc`, use `--risk-only` mode first
+| Agent Name |
+|----------|
+| **gpt-5** |
+| **gemini-2.5-pro** |
+| **deepseek-chat-v3.1** |
+| **claude-sonnet-4-5** |
+| **buynhold_btc** |
+| **grok-4** |
+| **qwen3-max** |
 
 ## ⚙️ Configuration
 
@@ -114,10 +112,10 @@ npm start -- follow claude-sonnet-4-5 --risk-only
 
 **Advanced Options**:
 ```bash
-# Set total margin (default 1000 USDT)
+# Set total margin (default 10 USDT)
 npm start -- follow gpt-5 --total-margin 5000
 
-# Set price tolerance (default 0.5%)
+# Set price tolerance (default 1.0%)
 npm start -- follow deepseek-chat-v3.1 --price-tolerance 1.0
 
 # Combined usage
@@ -127,8 +125,8 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
 **Command Options**:
 - `-r, --risk-only`: Assess only, no execution (safe mode)
 - `-i, --interval <seconds>`: Polling interval in seconds, default 30
-- `-t, --price-tolerance <percentage>`: Price tolerance percentage, default 0.5%
-- `-m, --total-margin <amount>`: Total margin (USDT), default 1000
+- `-t, --price-tolerance <percentage>`: Price tolerance percentage, default 1.0%
+- `-m, --total-margin <amount>`: Total margin (USDT), default 10
 
 #### 3. System Status Check
 ```bash

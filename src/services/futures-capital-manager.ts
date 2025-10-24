@@ -19,7 +19,7 @@ export interface CapitalAllocationResult {
 }
 
 export class FuturesCapitalManager {
-  private defaultTotalMargin: number = 1000; // 默认总保证金1000 USDT
+  private defaultTotalMargin: number = 10; // 默认总保证金10 USDT
 
   /**
    * 分配保证金到各个仓位

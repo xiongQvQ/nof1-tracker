@@ -8,7 +8,7 @@ export class ConfigManager {
 
   constructor() {
     this.config = {
-      defaultPriceTolerance: 0.5, // Default 0.5%
+      defaultPriceTolerance: 1.0, // Default 1.0%
       symbolTolerances: {}
     };
   }
@@ -99,7 +99,7 @@ export class ConfigManager {
    */
   reset(): void {
     this.config = {
-      defaultPriceTolerance: 0.5,
+      defaultPriceTolerance: 1.0,
       symbolTolerances: {}
     };
   }
