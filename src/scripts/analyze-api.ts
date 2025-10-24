@@ -7,24 +7,24 @@ import axios from "axios";
 
 /**
  * 自动计算当前的 lastHourlyMarker
- * 基于当前时间往前推 147 小时作为初始时间点
+ * 基于固定的初始时间点计算真实的小时数
  */
 function getCurrentLastHourlyMarker(): number {
+  // 固定的初始时间点：2025-10-17T22:34:28.941Z
+  // 这个时间点对应 marker=0，之后每经过一小时，marker 增加 1
+  const INITIAL_TIME = new Date('2025-10-17T22:34:28.941Z');
+
   // 当前时间
   const now = new Date();
 
-  // 初始时间：当前时间往前推 147 小时
-  // 因为当 marker=147 时，就是从初始时间开始经过了 147 小时
-  const initialTime = new Date(now.getTime() - (147 * 60 * 60 * 1000));
-
-  // 计算从初始时间到现在经过了多少小时
-  const hoursSinceInitial = Math.floor((now.getTime() - initialTime.getTime()) / (1000 * 60 * 60));
+  // 计算从固定初始时间到现在经过了多少小时
+  const hoursSinceInitial = Math.floor((now.getTime() - INITIAL_TIME.getTime()) / (1000 * 60 * 60));
 
   // 当前的 marker 就是从初始时间到现在经过的小时数
   const currentMarker = hoursSinceInitial;
 
   console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker}`);
-  console.log(`📅 Initial time: ${initialTime.toISOString()}`);
+  console.log(`📅 Fixed initial time: ${INITIAL_TIME.toISOString()}`);
   console.log(`📅 Current time: ${now.toISOString()}`);
   console.log(`📅 Hours since initial: ${hoursSinceInitial}`);
 
