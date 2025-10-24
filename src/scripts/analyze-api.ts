@@ -6,23 +6,27 @@ import axios from "axios";
 
 /**
  * 自动计算当前的 lastHourlyMarker
- * 基于已知的基准点自动递增
+ * 基于已知的时间点和 marker 值，按小时递增
  */
 function getCurrentLastHourlyMarker(): number {
-  // 基准时间：2024年10月24日，marker = 147
-  const baseDate = new Date('2024-10-24T00:00:00Z');
-  const baseMarker = 147;
+  // 已知：2024年10月24日某个时间点，marker = 147
+  // 假设这个已知时间点是今天的某个时刻
+  const knownDate = new Date('2024-10-24T12:00:00Z'); // 假设是中午12点
+  const knownMarker = 147;
 
   // 当前时间
   const now = new Date();
 
-  // 计算经过的小时数
-  const hoursDiff = Math.floor((now.getTime() - baseDate.getTime()) / (1000 * 60 * 60));
+  // 计算从已知时间到现在经过了多少小时
+  const hoursDiff = Math.floor((now.getTime() - knownDate.getTime()) / (1000 * 60 * 60));
 
-  // 计算当前的 marker
-  const currentMarker = baseMarker + hoursDiff;
+  // 当前的 marker = 已知 marker + 经过的小时数
+  const currentMarker = knownMarker + hoursDiff;
 
-  console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker} (based on ${hoursDiff} hours since base)`);
+  console.log(`📅 Auto-calculated lastHourlyMarker: ${currentMarker}`);
+  console.log(`📅 Known time: ${knownDate.toISOString()} (marker: ${knownMarker})`);
+  console.log(`📅 Current time: ${now.toISOString()}`);
+  console.log(`📅 Hours passed: ${hoursDiff}`);
 
   return currentMarker;
 }
