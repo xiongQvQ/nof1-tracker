@@ -3,9 +3,6 @@
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import {
-  handleAnalyzeCommand,
-  handleExecuteCommand,
-  handleListCommand,
   handleAgentsCommand,
   handleFollowCommand,
   handleStatusCommand
@@ -29,48 +26,6 @@ program
 // ============================================================================
 // Command Registration
 // ============================================================================
-
-// Analyze command
-program
-  .command('analyze')
-  .description('Analyze trading plans from nof1 API')
-  .option('-r, --risk-only', 'only perform risk assessment without executing trades')
-  .option('-t, --price-tolerance <percentage>', 'set price tolerance threshold (default: 0.5%)', parseFloat)
-  .option('-m, --total-margin <amount>', 'set total margin for futures trading (default: 1000 USDT)', parseFloat)
-  .action(async (options) => {
-    try {
-      await handleAnalyzeCommand(options);
-    } catch (error) {
-      handleError(error, 'Analysis failed');
-    }
-  });
-
-// Execute command
-program
-  .command('execute <plan-id>')
-  .description('Execute a specific trading plan by ID')
-  .option('-f, --force', 'execute trade even if risk assessment fails')
-  .option('-t, --price-tolerance <percentage>', 'set price tolerance threshold (default: 0.5%)', parseFloat)
-  .option('-m, --total-margin <amount>', 'set total margin for futures trading (default: 1000 USDT)', parseFloat)
-  .action(async (planId, options) => {
-    try {
-      await handleExecuteCommand(planId, options);
-    } catch (error) {
-      handleError(error, 'Execution failed');
-    }
-  });
-
-// List command
-program
-  .command('list')
-  .description('List available trading plans without execution')
-  .action(async () => {
-    try {
-      await handleListCommand();
-    } catch (error) {
-      handleError(error, 'Failed to list plans');
-    }
-  });
 
 // List agents command
 program
