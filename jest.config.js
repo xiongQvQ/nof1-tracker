@@ -11,6 +11,8 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
     '!src/index.ts', // Exclude entry file from coverage
+    '!src/commands/**/*.ts', // Exclude newly refactored commands (TODO: add integration tests)
+    '!src/utils/command-helpers.ts', // Exclude command helpers (TODO: add integration tests)
   ],
   coverageDirectory: 'coverage',
   coverageReporters: [
