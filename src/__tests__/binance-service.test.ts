@@ -493,8 +493,9 @@ describe("BinanceService", () => {
 
       const result = service.createStopOrdersFromPosition(tinyPosition, "BUY");
 
-      expect(result.takeProfitOrder!.quantity).toBe("0");
-      expect(result.stopLossOrder!.quantity).toBe("0");
+      // 极小数量现在返回最小数量而不是"0"，这是为了解决Binance API精度问题
+      expect(result.takeProfitOrder!.quantity).toBe("0.001");
+      expect(result.stopLossOrder!.quantity).toBe("0.001");
     });
 
     it("should handle very large quantities", () => {
@@ -700,7 +701,8 @@ describe("BinanceService", () => {
         0.00000001,
         43210.12345678
       );
-      expect(tpOrder.quantity).toBe("0");
+      // 极小数量现在返回最小数量而不是"0"，这是为了解决Binance API精度问题
+      expect(tpOrder.quantity).toBe("0.001");
       expect(tpOrder.stopPrice).toBe("43210.12345678");
     });
   });
