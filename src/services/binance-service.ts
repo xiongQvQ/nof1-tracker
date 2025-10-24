@@ -257,10 +257,21 @@ export class BinanceService {
       const response = await this.client.request<T>(config);
       return response.data;
     } catch (error) {
-      console.error('Binance API Error:', error);
       if (axios.isAxiosError(error) && error.response) {
         const errorData = error.response.data as any;
-        throw new Error(`Binance API Error: ${errorData?.msg || errorData?.message || error.message}`);
+        const errorCode = errorData?.code;
+        const errorMessage = errorData?.msg || errorData?.message || error.message;
+        const statusText = error.response.statusText;
+        const statusCode = error.response.status;
+
+        // Log error details for debugging
+        console.error(`API Error [${errorCode || 'UNKNOWN'}]: ${errorMessage}`);
+        if (errorCode === -2019) {
+          console.error('💰 Margin insufficient - check available balance and existing positions');
+        }
+
+        // Maintain backward compatibility for tests - don't include error code in the thrown message
+        throw new Error(`Binance API Error: ${errorMessage}`);
       }
       throw new Error(`Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -282,10 +293,21 @@ export class BinanceService {
       const response = await this.client.get<T>(url);
       return response.data;
     } catch (error) {
-      console.error('Binance API Error:', error);
       if (axios.isAxiosError(error) && error.response) {
         const errorData = error.response.data as any;
-        throw new Error(`Binance API Error: ${errorData?.msg || errorData?.message || error.message}`);
+        const errorCode = errorData?.code;
+        const errorMessage = errorData?.msg || errorData?.message || error.message;
+        const statusText = error.response.statusText;
+        const statusCode = error.response.status;
+
+        // Log error details for debugging
+        console.error(`API Error [${errorCode || 'UNKNOWN'}]: ${errorMessage}`);
+        if (errorCode === -2019) {
+          console.error('💰 Margin insufficient - check available balance and existing positions');
+        }
+
+        // Maintain backward compatibility for tests - don't include error code in the thrown message
+        throw new Error(`Binance API Error: ${errorMessage}`);
       }
       throw new Error(`Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

@@ -14,7 +14,7 @@ import axios from "axios";
 function getCurrentLastHourlyMarker(): number {
   // 固定的初始时间点：2025-10-17T22:00:00.941Z
   // 这个时间点对应 marker=0，之后每经过一小时，marker 增加 1
-  const INITIAL_TIME = new Date('2025-10-17T22:00:00.000Z');
+  const INITIAL_TIME = new Date('2025-10-17T22:30:00.000Z');
 
   // 当前时间
   const now = new Date();
@@ -442,7 +442,7 @@ export class ApiAnalyzer {
 
     // 如果提供了总保证金，则对ENTER操作进行资金分配
     if (totalMargin && totalMargin > 0) {
-      this.applyCapitalAllocation(followPlans, currentPositions, totalMargin, agentId);
+      await this.applyCapitalAllocation(followPlans, currentPositions, totalMargin, agentId);
     }
 
     console.log(`✅ Generated ${followPlans.length} follow plan(s) for agent ${agentId}`);
@@ -524,12 +524,12 @@ export class ApiAnalyzer {
   /**
    * 应用资金分配到ENTER操作的跟单计划
    */
-  private applyCapitalAllocation(
+  private async applyCapitalAllocation(
     followPlans: FollowPlan[],
     currentPositions: Position[],
     totalMargin: number,
     agentId: string
-  ): void {
+  ): Promise<void> {
     // 筛选出ENTER操作的跟单计划
     const enterPlans = followPlans.filter(plan => plan.action === "ENTER");
 
@@ -550,8 +550,19 @@ export class ApiAnalyzer {
       return;
     }
 
+    // 获取可用余额
+    let availableBalance: number | undefined;
+    try {
+      const executor = new TradingExecutor();
+      const accountInfo = await executor.getAccountInfo();
+      availableBalance = parseFloat(accountInfo.availableBalance);
+      console.log(`💡 Available account balance: ${availableBalance.toFixed(2)} USDT`);
+    } catch (balanceError) {
+      console.warn(`⚠️ Failed to get account balance: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`);
+    }
+
     // 执行资金分配
-    const allocationResult = this.capitalManager.allocateMargin(positionsForAllocation, totalMargin);
+    const allocationResult = this.capitalManager.allocateMargin(positionsForAllocation, totalMargin, availableBalance);
 
     // 显示分配信息
     console.log(`\n💰 Capital Allocation for ${agentId}:`);

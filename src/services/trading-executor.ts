@@ -86,6 +86,7 @@ export class TradingExecutor {
       try {
         const accountInfo = await this.getAccountInfo();
         const availableMargin = parseFloat(accountInfo.availableBalance);
+        const totalWalletBalance = parseFloat(accountInfo.totalWalletBalance);
 
         // 获取当前市场价格来计算所需保证金
         let currentPrice = 0;
@@ -100,20 +101,37 @@ export class TradingExecutor {
 
         // 计算所需保证金
         const requiredMargin = (tradingPlan.quantity * currentPrice) / tradingPlan.leverage;
+        const notionalValue = tradingPlan.quantity * currentPrice;
 
         console.log(`💰 Account Balance Information:`);
+        console.log(`   Total Wallet Balance: ${totalWalletBalance.toFixed(2)} USDT`);
         console.log(`   Available Balance: ${availableMargin.toFixed(2)} USDT`);
         console.log(`   Current Price: ${currentPrice.toFixed(2)} USDT`);
-        console.log(`   Required Margin: ${requiredMargin.toFixed(2)} USDT`);
         console.log(`   Position Size: ${tradingPlan.quantity} ${tradingPlan.symbol}`);
         console.log(`   Leverage: ${tradingPlan.leverage}x`);
+        console.log(`   Notional Value: ${notionalValue.toFixed(2)} USDT`);
+        console.log(`   Required Margin: ${requiredMargin.toFixed(2)} USDT`);
         console.log(`   Margin Ratio: ${((requiredMargin / availableMargin) * 100).toFixed(2)}%`);
+
+        // 检查其他账户信息
+        console.log(`   Account Details:`);
+        console.log(`   - Total Initial Margin: ${accountInfo.totalInitialMargin || 'N/A'}`);
+        console.log(`   - Total Maint Margin: ${accountInfo.totalMaintMargin || 'N/A'}`);
+        console.log(`   - Total Position Initial Margin: ${accountInfo.totalPositionInitialMargin || 'N/A'}`);
+        console.log(`   - Total Open Order Initial Margin: ${accountInfo.totalOpenOrderInitialMargin || 'N/A'}`);
+        console.log(`   - Total Cross Wallet Balance: ${accountInfo.totalCrossWalletBalance || 'N/A'}`);
 
         if (requiredMargin > availableMargin) {
           const deficit = requiredMargin - availableMargin;
+          console.error(`❌ MARGIN INSUFFICIENT:`);
+          console.error(`   Required: ${requiredMargin.toFixed(2)} USDT`);
+          console.error(`   Available: ${availableMargin.toFixed(2)} USDT`);
+          console.error(`   Deficit: ${deficit.toFixed(2)} USDT`);
+          console.error(`   Notional Value: ${notionalValue.toFixed(2)} USDT`);
+          console.error(`   Current Price: $${currentPrice.toFixed(2)}`);
           return {
             success: false,
-            error: `Insufficient margin: Required ${requiredMargin.toFixed(2)} USDT, Available ${availableMargin.toFixed(2)} USDT (Deficit: ${deficit.toFixed(2)} USDT)`
+            error: `Insufficient margin: Required ${requiredMargin.toFixed(2)} USDT, Available ${availableMargin.toFixed(2)} USDT (Deficit: ${deficit.toFixed(2)} USDT). Notional: ${notionalValue.toFixed(2)} USDT`
           };
         }
 
@@ -122,6 +140,13 @@ export class TradingExecutor {
         if (marginUsageRatio > 0.8) {
           console.warn(`⚠️ High margin usage: ${(marginUsageRatio * 100).toFixed(2)}% of available balance`);
         }
+
+        // 检查订单价值是否过小（币安有最小订单价值限制）
+        const minOrderValue = 5; // USDT
+        if (notionalValue < minOrderValue) {
+          console.warn(`⚠️ Order value too small: ${notionalValue.toFixed(2)} USDT (minimum: ${minOrderValue} USDT)`);
+        }
+
       } catch (balanceError) {
         console.warn(`⚠️ Failed to check account balance: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`);
         // 继续执行，但记录警告
