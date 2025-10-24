@@ -46,20 +46,32 @@ npm start -- follow gpt-5 --total-margin 5000
 
 ## 📊 跟单策略优先级
 
+### 0. 🧹 孤立挂单清理（每次轮询前）
+**触发**: 每次`followAgent()`调用开始
+**操作**: 自动清理没有对应仓位的止盈止损单
+```
+🔍 Checking for orphaned orders...
+✅ Orphaned orders cleanup complete: 2/2 cancelled
+```
+
 ### 1. 🔄 换仓检测（最高优先级）
 **条件**: `entry_oid`发生变化
-**操作**: 先平仓 → 再开仓
+**操作**: 先平仓 → 等待确认 → 订单去重 → 价格检查 → 再开仓
 ```
-🔄 ENTRY OID CHANGED: BTC (old → new)
-📉 Close old position
-📈 Open new position
+🔄 CLOSING ALL POSITIONS: BTC - Entry order changed
+📊 Found 1 position(s) and 2 open order(s)
+✅ All positions successfully closed
+📈 OPENING POSITION: BTC BUY 0.05 @ 109600
+💰 Price Check: Entry $109600 vs Current $109650
+✅ Position opened successfully
 ```
 
 ### 2. 📈 新开仓检测
 **条件**: 之前无仓位 + `quantity > 0`
-**操作**: 直接跟单
+**操作**: 订单去重 → 价格检查 → 跟单开仓
 ```
 📈 NEW POSITION: BTC BUY 0.05 @ 109538 (OID: 210131632249)
+💰 Price Check: Entry $109538 vs Current $109550
 ```
 
 ### 3. 📉 平仓检测
@@ -81,6 +93,7 @@ npm start -- follow gpt-5 --total-margin 5000
 ### 风险评分公式
 ```
 riskScore = 20 + (leverage × 10)
+最大值: 100
 ```
 
 ### 价格容忍度检查
@@ -89,9 +102,12 @@ priceDifference = |(currentPrice - entryPrice) / entryPrice| × 100%
 ```
 
 **默认容忍度**: 0.5%
+**配置方式**: `--price-tolerance <percentage>`
 **行为**:
-- 差异 ≤ 0.5% → 执行交易 ✅
-- 差异 > 0.5% → 跳过交易 ❌
+- 差异 ≤ 容忍度 → 执行交易 ✅
+- 差异 > 容忍度 → 跳过交易 ❌
+
+**实现位置**: `RiskManager.checkPriceTolerance()`
 
 ### 风险等级
 | 杠杆 | 风险分数 | 等级 |
@@ -206,12 +222,22 @@ curl "https://nof1.ai/api/account-totals?lastHourlyMarker=134"
 
 # 查看详细日志
 npm start -- follow gpt-5 --risk-only
+
+# 清理订单历史缓存
+rm -rf data/order-history.json
 ```
 
 ### 错误类型
 - `Agent not found`: 检查agent名称
 - `Network error`: 检查网络连接
 - `Risk assessment failed`: 杠杆过高
+- `Price tolerance exceeded`: 价格偏离过大，调整`--price-tolerance`
+- `Insufficient margin`: 余额不足，调整`--total-margin`
+- `Order already processed`: 订单已处理（正常去重）
+
+### 数据文件位置
+- 订单历史: `data/order-history.json`
+- 日志文件: 控制台输出
 
 ## 💡 最佳实践
 
@@ -222,6 +248,7 @@ npm start -- follow gpt-5 --risk-only
 - ✅ 定期检查交易结果
 - 📏 根据市场情况调整价格容忍度
 - 💰 设置合理的总保证金
+- 🧹 定期清理订单历史（防止文件过大）
 
 ### 风险控制
 - 🎯 选择适合的Agent
@@ -237,7 +264,23 @@ npm start -- follow gpt-5 --risk-only
   - 标准投资：500-2000 USDT
   - 分散投资：不要全部投入一个Agent
 
+### 新功能使用
+- 🔄 **订单去重**: 自动防止重复执行，无需手动干预
+- 🧹 **孤立挂单清理**: 每次轮询自动执行，保持系统清洁
+- 📏 **价格容忍度**: 根据市场波动调整参数
+- 💰 **资金管理**: 精确控制投入金额
+
 ---
 
-**快速参考版本**: v1.0
-**详细文档**: [follow-strategy.md](./follow-strategy.md)
+## 📚 相关文档
+
+- **[follow-strategy.md](./follow-strategy.md)** - 完整的跟单策略文档
+- **[orphaned-orders-cleanup.md](./orphaned-orders-cleanup.md)** - 孤立挂单清理功能说明
+- **[futures-capital-management.md](./futures-capital-management.md)** - 资金管理系统说明
+- **[price-tolerance.md](./price-tolerance.md)** - 价格容忍度机制说明
+- **[REFACTORING_SUMMARY.md](./REFACTORING_SUMMARY.md)** - 代码重构总结
+
+---
+
+**快速参考版本**: v2.0
+**最后更新**: 2025-10-24

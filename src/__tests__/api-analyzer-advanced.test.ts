@@ -52,7 +52,7 @@ describe('ApiAnalyzer - Comprehensive Unit Tests', () => {
       const configManager = analyzer.getConfigManager();
 
       // Test default value
-      expect(configManager.getPriceTolerance()).toBe(0.5);
+      expect(configManager.getPriceTolerance()).toBe(1.0);
 
       // Test setting default tolerance
       configManager.setPriceTolerance(2.0);

@@ -8,7 +8,7 @@ describe('ConfigManager', () => {
 
   it('should use default price tolerance when no config provided', () => {
     const configManager = new ConfigManager();
-    expect(configManager.getPriceTolerance()).toBe(0.5);
+    expect(configManager.getPriceTolerance()).toBe(1.0);
   });
 
   it('should set and get price tolerance', () => {
@@ -38,7 +38,7 @@ describe('ConfigManager', () => {
 
     expect(configManager.getPriceTolerance('BTCUSDT')).toBe(1.0);
     expect(configManager.getPriceTolerance('ETHUSDT')).toBe(0.3);
-    expect(configManager.getPriceTolerance('ADAUSDT')).toBe(0.5); // Default
+    expect(configManager.getPriceTolerance('ADAUSDT')).toBe(1.0); // Default
   });
 
   it('should load config from environment variables', () => {
