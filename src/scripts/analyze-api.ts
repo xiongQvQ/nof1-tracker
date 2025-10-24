@@ -2,6 +2,7 @@ import { TradingPlan } from "../types/trading";
 import { ConfigManager } from "../services/config-manager";
 import { RiskManager, PriceToleranceCheck } from "../services/risk-manager";
 import { FuturesCapitalManager, CapitalAllocationResult } from "../services/futures-capital-manager";
+import { OrderHistoryManager } from "../services/order-history-manager";
 import axios from "axios";
 
 /**
@@ -88,6 +89,7 @@ export class ApiAnalyzer {
   private configManager: ConfigManager;
   private riskManager: RiskManager;
   private capitalManager: FuturesCapitalManager;
+  private orderHistoryManager: OrderHistoryManager;
 
   constructor(
     baseUrl: string = "https://nof1.ai/api",
@@ -97,6 +99,7 @@ export class ApiAnalyzer {
     this.configManager = configManager || new ConfigManager();
     this.riskManager = new RiskManager(this.configManager);
     this.capitalManager = new FuturesCapitalManager();
+    this.orderHistoryManager = new OrderHistoryManager();
 
     // Load configuration from environment
     this.configManager.loadFromEnvironment();
@@ -213,17 +216,23 @@ export class ApiAnalyzer {
           position: position // 包含完整的position信息以支持止盈止损设置
         };
 
-        // 添加价格容忍度检查
-        const priceTolerance = this.riskManager.checkPriceTolerance(
-          position.entry_price,
-          position.current_price,
-          position.symbol
-        );
-        entryPlan.priceTolerance = priceTolerance;
+        // 检查新订单是否已处理（去重）
+        if (this.orderHistoryManager.isOrderProcessed(position.entry_oid, position.symbol)) {
+          console.log(`🔄 SKIPPED: ${position.symbol} new entry (OID: ${position.entry_oid}) already processed`);
+          // 仍然推送平仓计划，但跳过新开仓计划
+        } else {
+          // 添加价格容忍度检查
+          const priceTolerance = this.riskManager.checkPriceTolerance(
+            position.entry_price,
+            position.current_price,
+            position.symbol
+          );
+          entryPlan.priceTolerance = priceTolerance;
 
-        followPlans.push(entryPlan);
-        console.log(`📈 NEW ENTRY ORDER: ${position.symbol} ${entryPlan.side} ${entryPlan.quantity} @ ${position.entry_price} (OID: ${position.entry_oid})`);
-        console.log(`💰 Price Check: Entry $${position.entry_price} vs Current $${position.current_price} - ${priceTolerance.reason}`);
+          followPlans.push(entryPlan);
+          console.log(`📈 NEW ENTRY ORDER: ${position.symbol} ${entryPlan.side} ${entryPlan.quantity} @ ${position.entry_price} (OID: ${position.entry_oid})`);
+          console.log(`💰 Price Check: Entry $${position.entry_price} vs Current $${position.current_price} - ${priceTolerance.reason}`);
+        }
       }
       // 如果没有之前仓位，且数量不为0（新开仓）
       else if (!prevPosition && position.quantity !== 0) {
@@ -240,6 +249,12 @@ export class ApiAnalyzer {
           timestamp: Date.now(),
           position: position // 包含完整的position信息以支持止盈止损设置
         };
+
+        // 检查订单是否已处理（去重）
+        if (this.orderHistoryManager.isOrderProcessed(position.entry_oid, position.symbol)) {
+          console.log(`🔄 SKIPPED: ${position.symbol} position (OID: ${position.entry_oid}) already processed`);
+          continue; // 跳过已处理的订单
+        }
 
         // 添加价格容忍度检查
         const priceTolerance = this.riskManager.checkPriceTolerance(

@@ -88,6 +88,7 @@ export class BinanceService {
   private apiSecret: string;
   private baseUrl: string;
   private client: AxiosInstance;
+  private symbolInfoCache: Map<string, any> = new Map();
 
   constructor(apiKey: string, apiSecret: string, testnet?: boolean) {
     // 如果没有明确指定，则从环境变量读取
@@ -124,32 +125,95 @@ export class BinanceService {
   /**
    * Format quantity precision based on symbol
    */
-  private formatQuantity(quantity: number | string, symbol: string): string {
-    // Define precision for different symbols
+  public formatQuantity(quantity: number | string, symbol: string): string {
+    const baseSymbol = this.convertSymbol(symbol);
+
+    // Updated precision map based on Binance futures requirements
     const precisionMap: Record<string, number> = {
-      'BTCUSDT': 3,      // BTC uses 3 decimal places (adjusted)
-      'ETHUSDT': 5,      // ETH uses 5 decimal places
-      'ADAUSDT': 1,      // ADA uses 1 decimal place
-      'DOGEUSDT': 1,     // DOGE uses 1 decimal place
-      'SOLUSDT': 2,      // SOL uses 2 decimal places
-      'AVAXUSDT': 3,     // AVAX uses 3 decimal places
-      'MATICUSDT': 2,    // MATIC uses 2 decimal places
-      'DOTUSDT': 3,      // DOT uses 3 decimal places
-      'LINKUSDT': 3,     // LINK uses 3 decimal places
-      'UNIUSDT': 3,      // UNI uses 3 decimal places
+      'BTCUSDT': 3,      // BTC futures: 3 decimal places (min 0.001)
+      'ETHUSDT': 3,      // ETH futures: 3 decimal places (min 0.001)
+      'BNBUSDT': 3,      // BNB futures: 3 decimal places (min 0.001)
+      'XRPUSDT': 1,      // XRP futures: 1 decimal place (min 0.1)
+      'ADAUSDT': 0,      // ADA futures: 0 decimal places (min 1)
+      'DOGEUSDT': 0,     // DOGE futures: 0 decimal places (min 1)
+      'SOLUSDT': 2,      // SOL futures: 2 decimal places (min 0.01)
+      'AVAXUSDT': 2,     // AVAX futures: 2 decimal places (min 0.01)
+      'MATICUSDT': 1,    // MATIC futures: 1 decimal place (min 0.1)
+      'DOTUSDT': 2,      // DOT futures: 2 decimal places (min 0.01)
+      'LINKUSDT': 2,     // LINK futures: 2 decimal places (min 0.01)
+      'UNIUSDT': 2,      // UNI futures: 2 decimal places (min 0.01)
     };
 
-    const baseSymbol = this.convertSymbol(symbol);
-    const precision = precisionMap[baseSymbol] || 6; // Default to 6 decimal places
+    const precision = precisionMap[baseSymbol] || 3; // Default to 3 decimal places
 
     // Convert to number if it's a string
     const quantityNum = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
 
-    // Format quantity to specified precision
-    const formattedQuantity = quantityNum.toFixed(precision);
+    // Define minimum quantities based on symbol
+    const minQtyMap: Record<string, number> = {
+      'BTCUSDT': 0.001,
+      'ETHUSDT': 0.001,
+      'BNBUSDT': 0.001,
+      'XRPUSDT': 0.1,
+      'ADAUSDT': 1,
+      'DOGEUSDT': 10,
+      'SOLUSDT': 0.01,
+      'AVAXUSDT': 0.01,
+      'MATICUSDT': 0.1,
+      'DOTUSDT': 0.01,
+      'LINKUSDT': 0.01,
+      'UNIUSDT': 0.01,
+    };
 
-    // Remove trailing zeros after decimal point
+    const minQty = minQtyMap[baseSymbol] || 0.001;
+
+    // If quantity is too small, return minimum quantity
+    if (quantityNum < minQty && quantityNum > 0) {
+      console.warn(`Quantity ${quantityNum} is below minimum ${minQty} for ${baseSymbol}, using minimum`);
+      return minQty.toString();
+    }
+
+    // Round to nearest valid step size
+    const stepSize = minQty; // Use minQty as step size for simplicity
+    const roundedQuantity = Math.floor(quantityNum / stepSize) * stepSize;
+
+    // Ensure we don't go below minimum
+    const finalQuantity = Math.max(roundedQuantity, minQty);
+
+    // Format to correct precision and remove trailing zeros
+    const formattedQuantity = finalQuantity.toFixed(precision);
     return formattedQuantity.replace(/\.?0+$/, '');
+  }
+
+  /**
+   * Format price precision based on symbol
+   */
+  public formatPrice(price: number | string, symbol: string): string {
+    const baseSymbol = this.convertSymbol(symbol);
+
+    // Price precision map for stop prices and regular prices
+    const pricePrecisionMap: Record<string, number> = {
+      'BTCUSDT': 1,      // BTC: 1 decimal place for prices
+      'ETHUSDT': 2,      // ETH: 2 decimal places for prices
+      'BNBUSDT': 2,      // BNB: 2 decimal places for prices
+      'ADAUSDT': 4,      // ADA: 4 decimal places for prices
+      'DOGEUSDT': 5,     // DOGE: 5 decimal places for prices
+      'SOLUSDT': 2,      // SOL: 2 decimal places for prices
+      'AVAXUSDT': 2,     // AVAX: 2 decimal places for prices
+      'MATICUSDT': 3,    // MATIC: 3 decimal places for prices
+      'DOTUSDT': 2,      // DOT: 2 decimal places for prices
+      'LINKUSDT': 2,     // LINK: 2 decimal places for prices
+      'UNIUSDT': 2,      // UNI: 2 decimal places for prices
+    };
+
+    const precision = pricePrecisionMap[baseSymbol] || 2; // Default to 2 decimal places for prices
+
+    // Convert to number if it's a string
+    const priceNum = typeof price === 'string' ? parseFloat(price) : price;
+
+    // Format to correct precision and remove trailing zeros
+    const formattedPrice = priceNum.toFixed(precision);
+    return formattedPrice.replace(/\.?0+$/, '');
   }
 
   /**
@@ -228,6 +292,51 @@ export class BinanceService {
   }
 
   /**
+   * 获取交易所信息
+   */
+  async getExchangeInformation(): Promise<any> {
+    return await this.makePublicRequest('/fapi/v1/exchangeInfo');
+  }
+
+  /**
+   * 获取符号信息（带缓存）
+   */
+  async getSymbolInfo(symbol: string): Promise<any> {
+    const baseSymbol = this.convertSymbol(symbol);
+
+    // 如果缓存中有，直接返回
+    if (this.symbolInfoCache.has(baseSymbol)) {
+      return this.symbolInfoCache.get(baseSymbol);
+    }
+
+    // 否则获取交易所信息并找到对应符号
+    try {
+      const exchangeInfo = await this.getExchangeInformation();
+      const symbolInfo = exchangeInfo.symbols.find((s: any) => s.symbol === baseSymbol);
+
+      if (symbolInfo) {
+        // 缓存符号信息
+        this.symbolInfoCache.set(baseSymbol, symbolInfo);
+        return symbolInfo;
+      } else {
+        throw new Error(`Symbol ${baseSymbol} not found in exchange information`);
+      }
+    } catch (error) {
+      console.warn(`Failed to get symbol info for ${baseSymbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // 返回默认值
+      return {
+        symbol: baseSymbol,
+        filters: [
+          {
+            filterType: 'LOT_SIZE',
+            stepSize: '0.001'
+          }
+        ]
+      };
+    }
+  }
+
+  /**
    * 获取服务器时间
    */
   async getServerTime(): Promise<number> {
@@ -265,8 +374,8 @@ export class BinanceService {
       params.quantity = this.formatQuantity(order.quantity, order.symbol);
     }
 
-    if (order.price) params.price = order.price;
-    if (order.stopPrice) params.stopPrice = order.stopPrice;
+    if (order.price) params.price = this.formatPrice(order.price, order.symbol);
+    if (order.stopPrice) params.stopPrice = this.formatPrice(order.stopPrice, order.symbol);
     if (order.timeInForce) params.timeInForce = order.timeInForce;
     if (order.closePosition) params.closePosition = order.closePosition;
 
@@ -357,7 +466,7 @@ export class BinanceService {
       side,
       type: "TAKE_PROFIT_MARKET",
       quantity: this.formatQuantity(quantity, symbol),
-      stopPrice: takeProfitPrice.toString(),
+      stopPrice: this.formatPrice(takeProfitPrice, symbol),
       closePosition: "true"
     };
   }
@@ -376,7 +485,7 @@ export class BinanceService {
       side,
       type: "STOP_MARKET",
       quantity: this.formatQuantity(quantity, symbol),
-      stopPrice: stopLossPrice.toString(),
+      stopPrice: this.formatPrice(stopLossPrice, symbol),
       closePosition: "true"
     };
   }

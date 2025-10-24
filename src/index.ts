@@ -5,6 +5,7 @@ import { ApiAnalyzer, FollowPlan } from './scripts/analyze-api';
 import { TradingExecutor, StopOrderExecutionResult } from './services/trading-executor';
 import { RiskManager } from './services/risk-manager';
 import { TradingPlan } from './types/trading';
+import { OrderHistoryManager } from './services/order-history-manager';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -267,6 +268,7 @@ program
       const analyzer = new ApiAnalyzer();
       const executor = new TradingExecutor();
       const riskManager = new RiskManager();
+      const orderHistoryManager = new OrderHistoryManager();
 
       // Apply price tolerance configuration
       if (options.priceTolerance && !isNaN(options.priceTolerance)) {
@@ -382,6 +384,19 @@ program
                   if (result.stopLossOrderId) {
                     console.log(`   📉 Stop Loss Order ID: ${result.stopLossOrderId}`);
                   }
+
+                  // Save order to history for deduplication
+                  if (plan.position && plan.position.entry_oid && result.orderId) {
+                    orderHistoryManager.saveProcessedOrder(
+                      plan.position.entry_oid,
+                      plan.symbol,
+                      plan.agent,
+                      plan.side,
+                      plan.quantity,
+                      plan.entryPrice,
+                      result.orderId.toString()
+                    );
+                  }
                 } else {
                   console.log(`   ❌ Trade execution failed: ${result.error}`);
                 }
@@ -392,6 +407,19 @@ program
                 if (result.success) {
                   console.log(`   ✅ Trade executed successfully!`);
                   console.log(`   📝 Order ID: ${result.orderId}`);
+
+                  // Save order to history for deduplication
+                  if (plan.position && plan.position.entry_oid && result.orderId) {
+                    orderHistoryManager.saveProcessedOrder(
+                      plan.position.entry_oid,
+                      plan.symbol,
+                      plan.agent,
+                      plan.side,
+                      plan.quantity,
+                      plan.entryPrice,
+                      result.orderId.toString()
+                    );
+                  }
                 } else {
                   console.log(`   ❌ Trade execution failed: ${result.error}`);
                 }

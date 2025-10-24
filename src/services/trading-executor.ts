@@ -150,11 +150,13 @@ export class TradingExecutor {
       if (stopOrders.takeProfitOrder) {
         try {
           console.log(`📈 Placing Take Profit order at: ${stopOrders.takeProfitOrder.stopPrice}`);
+          // 使用实际执行的交易数量，而不是原始position数量
+          const actualQuantity = this.binanceService.formatQuantity(tradingPlan.quantity, tradingPlan.symbol);
           const tpOrderResponse = await this.binanceService.placeOrder({
             symbol: stopOrders.takeProfitOrder.symbol,
             side: stopOrders.takeProfitOrder.side,
             type: stopOrders.takeProfitOrder.type,
-            quantity: stopOrders.takeProfitOrder.quantity,
+            quantity: actualQuantity, // 使用实际执行的数量
             leverage: 0, // Stop orders don't need leverage
             stopPrice: stopOrders.takeProfitOrder.stopPrice,
             closePosition: "true"
@@ -170,11 +172,13 @@ export class TradingExecutor {
       if (stopOrders.stopLossOrder) {
         try {
           console.log(`📉 Placing Stop Loss order at: ${stopOrders.stopLossOrder.stopPrice}`);
+          // 使用实际执行的交易数量，而不是原始position数量
+          const actualQuantity = this.binanceService.formatQuantity(tradingPlan.quantity, tradingPlan.symbol);
           const slOrderResponse = await this.binanceService.placeOrder({
             symbol: stopOrders.stopLossOrder.symbol,
             side: stopOrders.stopLossOrder.side,
             type: stopOrders.stopLossOrder.type,
-            quantity: stopOrders.stopLossOrder.quantity,
+            quantity: actualQuantity, // 使用实际执行的数量
             leverage: 0, // Stop orders don't need leverage
             stopPrice: stopOrders.stopLossOrder.stopPrice,
             closePosition: "true"
