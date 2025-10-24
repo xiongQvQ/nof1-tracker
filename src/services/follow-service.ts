@@ -172,14 +172,44 @@ export class FollowService {
     const { previousPosition, currentPosition } = change;
     if (!previousPosition || !currentPosition) return;
 
+    // 1. 平仓前获取账户余额
+    let balanceBeforeClose: number | undefined;
+    try {
+      const accountInfo = await this.tradingExecutor.getAccountInfo();
+      balanceBeforeClose = parseFloat(accountInfo.availableBalance);
+      console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance before closing: $${balanceBeforeClose.toFixed(2)} USDT`);
+    } catch (error) {
+      console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance before close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
     const closeReason = `Entry order changed (old: ${previousPosition.entry_oid} → new: ${currentPosition.entry_oid}) - closing old position`;
 
-    // 先平仓旧仓位
+    // 2. 平仓旧仓位
     const closeResult = await this.positionManager.closePosition(previousPosition.symbol, closeReason);
 
     if (closeResult.success) {
       // 等待一小段时间确保平仓完成
       await new Promise(resolve => setTimeout(resolve, TIME_CONFIG.BETWEEN_OPERATIONS_DELAY));
+
+      // 3. 平仓后获取账户余额,计算释放的资金
+      let releasedMargin: number | undefined;
+      if (balanceBeforeClose !== undefined) {
+        try {
+          const accountInfo = await this.tradingExecutor.getAccountInfo();
+          const balanceAfterClose = parseFloat(accountInfo.availableBalance);
+          releasedMargin = balanceAfterClose - balanceBeforeClose;
+          console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance after closing: $${balanceAfterClose.toFixed(2)} USDT`);
+          console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Released margin from closing: $${releasedMargin.toFixed(2)} USDT (${releasedMargin >= 0 ? 'Profit' : 'Loss'})`);
+          
+          // 如果释放的资金为负数(亏损),则不使用
+          if (releasedMargin <= 0) {
+            console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Position closed with loss, insufficient margin released. Will use Agent's original quantity.`);
+            releasedMargin = undefined;
+          }
+        } catch (error) {
+          console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance after close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
 
       // 检查新订单是否已处理（去重）
       if (this.orderHistoryManager.isOrderProcessed(currentPosition.entry_oid, currentPosition.symbol)) {
@@ -195,9 +225,11 @@ export class FollowService {
       );
 
       if (priceTolerance.shouldExecute) {
-        // 再开新仓位
-        const openReason = `New entry order (${currentPosition.entry_oid}) by ${agentId}`;
-        const openResult = await this.positionManager.openPosition(currentPosition, openReason, agentId);
+        // 4. 用平仓释放的资金开新仓位
+        const openReason = releasedMargin 
+          ? `Reopening with released margin $${releasedMargin.toFixed(2)} (OID: ${currentPosition.entry_oid}) by ${agentId}`
+          : `New entry order (${currentPosition.entry_oid}) by ${agentId}`;
+        const openResult = await this.positionManager.openPosition(currentPosition, openReason, agentId, releasedMargin);
 
         if (openResult.success) {
           console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} POSITION CHANGE COMPLETED: ${currentPosition.symbol} ${currentPosition.quantity > 0 ? 'BUY' : 'SELL'} ${Math.abs(currentPosition.quantity)} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);

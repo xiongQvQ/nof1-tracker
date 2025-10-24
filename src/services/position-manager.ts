@@ -123,12 +123,17 @@ export class PositionManager {
 
   /**
    * 执行开仓操作
+   * @param position Agent的仓位信息
+   * @param reason 开仓原因
+   * @param agentId Agent ID
+   * @param allocatedMargin 可选,指定用于此仓位的保证金(用于换仓时复用平仓资金)
    */
   @handleErrors(PositionError, 'PositionManager.openPosition')
   async openPosition(
     position: Position,
     reason: string,
-    agentId: string
+    agentId: string,
+    allocatedMargin?: number
   ): Promise<PositionOperationResult> {
     try {
       console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} OPENING POSITION: ${position.symbol} ${position.quantity > 0 ? 'BUY' : 'SELL'} ${Math.abs(position.quantity)} @ ${position.entry_price} - ${reason}`);
@@ -144,12 +149,22 @@ export class PositionManager {
         };
       }
 
+      // 如果指定了保证金,根据保证金计算交易数量
+      let quantity = Math.abs(position.quantity);
+      if (allocatedMargin !== undefined && allocatedMargin > 0) {
+        // 计算名义价值: 保证金 × 杠杆
+        const notionalValue = allocatedMargin * position.leverage;
+        // 计算数量: 名义价值 / 当前价格
+        quantity = notionalValue / position.current_price;
+        console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Using allocated margin: $${allocatedMargin.toFixed(2)} (${position.leverage}x leverage) → Quantity: ${quantity.toFixed(4)}`);
+      }
+
       const tradingPlan: TradingPlan = {
         id: `open_${position.symbol}_${Date.now()}`,
         symbol: position.symbol,
         side: position.quantity > 0 ? "BUY" : "SELL",
         type: "MARKET",
-        quantity: Math.abs(position.quantity),
+        quantity: quantity,
         leverage: position.leverage,
         timestamp: Date.now()
       };
