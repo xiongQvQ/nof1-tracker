@@ -382,6 +382,13 @@ export class BinanceService {
   }
 
   /**
+   * 获取所有仓位信息(包括零仓位)
+   */
+  async getAllPositions(): Promise<PositionResponse[]> {
+    return await this.makeSignedRequest<PositionResponse[]>('/fapi/v2/positionRisk');
+  }
+
+  /**
    * 下单
    */
   async placeOrder(order: BinanceOrder): Promise<OrderResponse> {

@@ -6,15 +6,7 @@
 ![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-一个基于TDD（测试驱动开发）方法构建的AI Agent跟单交易命令行工具，用于分析 nof1.ai API 信号并自动执行 Binance 合约交易。
-
-## 🎯 项目亮点
-
-- **🧪 TDD驱动**: 254个测试用例，92.79%语句覆盖率，确保代码质量
-- **🔒 真实API集成**: 完整的Binance Futures API集成，支持主网和测试网
-- **🛡️ 企业级风险管理**: 多层风险评估机制，防止过度杠杆和高风险交易
-- **📊 生产就绪**: 完整的日志系统、错误处理和监控机制
-- **🏗️ 模块化架构**: 清晰的代码结构，易于维护和扩展
+一个用于分析 nof1.ai API 信号并自动执行 Binance 合约交易的命令行工具。
 
 ## 💻 技术栈
 

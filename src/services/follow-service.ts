@@ -51,6 +51,9 @@ export class FollowService {
   ): Promise<FollowPlan[]> {
     console.log(`${LOGGING_CONFIG.EMOJIS.ROBOT} Following agent: ${agentId}`);
 
+    // 0. 清理孤立的挂单 (没有对应仓位的止盈止损单)
+    await this.positionManager.cleanOrphanedOrders();
+
     const previousPositions = this.lastPositions.get(agentId) || [];
     const followPlans: FollowPlan[] = [];
 

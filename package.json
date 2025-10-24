@@ -4,7 +4,7 @@
   "description": "CLI tool for automated contract trading based on nof1 account totals API",
   "main": "dist/index.js",
   "bin": {
-    "nof1-trade": "dist/index.js"
+    "nof1-tracker": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

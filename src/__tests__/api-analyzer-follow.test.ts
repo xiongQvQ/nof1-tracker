@@ -1,13 +1,20 @@
 import { ApiAnalyzer } from '../scripts/analyze-api';
 import { ConfigManager } from '../services/config-manager';
 import { ApiClient } from '../services/api-client';
+import { BinanceService } from '../services/binance-service';
 import { TradingExecutor } from '../services/trading-executor';
+import { OrderHistoryManager } from '../services/order-history-manager';
 
-// Mock ApiClient to control API responses
+// Mock services to avoid real HTTP requests and file I/O
 jest.mock('../services/api-client');
+jest.mock('../services/binance-service');
 jest.mock('../services/trading-executor');
+jest.mock('../services/order-history-manager');
+
 const MockedApiClient = ApiClient as jest.MockedClass<typeof ApiClient>;
+const MockedBinanceService = BinanceService as jest.MockedClass<typeof BinanceService>;
 const MockedTradingExecutor = TradingExecutor as jest.MockedClass<typeof TradingExecutor>;
+const MockedOrderHistoryManager = OrderHistoryManager as jest.MockedClass<typeof OrderHistoryManager>;
 
 // Mock console methods for cleaner test output
 const originalConsoleLog = console.log;
@@ -21,11 +28,22 @@ describe('ApiAnalyzer - followAgent Method', () => {
     // Create mocked ApiClient instance
     mockApiClient = new MockedApiClient() as jest.Mocked<ApiClient>;
     
-    // Mock TradingExecutor's getAccountInfo method
+    // Mock TradingExecutor's getAccountInfo to avoid real API calls
     MockedTradingExecutor.prototype.getAccountInfo = jest.fn().mockResolvedValue({
       availableBalance: '10000.00',
       totalWalletBalance: '10000.00'
     });
+    
+    // Mock BinanceService methods
+    MockedBinanceService.prototype.getAccountInfo = jest.fn().mockResolvedValue({
+      availableBalance: '10000.00',
+      totalWalletBalance: '10000.00'
+    });
+    
+    // Mock OrderHistoryManager to avoid file I/O
+    MockedOrderHistoryManager.prototype.isOrderProcessed = jest.fn().mockReturnValue(false);
+    MockedOrderHistoryManager.prototype.saveProcessedOrder = jest.fn();
+    MockedOrderHistoryManager.prototype.getProcessedOrders = jest.fn().mockReturnValue([]);
     
     analyzer = new ApiAnalyzer(new ConfigManager(), mockApiClient);
 
@@ -165,7 +183,7 @@ describe('ApiAnalyzer - followAgent Method', () => {
       // Should have allocation data
       expect(result[0].allocatedMargin).toBeDefined();
       expect(result[0].allocationRatio).toBeDefined();
-    }, 10000);
+    });
   });
 
   describe('getAvailableAgents', () => {

@@ -37,3 +37,4 @@ tmp/
 temp/
 .claude/
 data
+.jest-cache

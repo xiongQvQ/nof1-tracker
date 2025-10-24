@@ -391,4 +391,110 @@ export class PositionManager {
 
     return remainingPositions.length === 0;
   }
+
+  /**
+   * 清理孤立的挂单 - 没有对应仓位的止盈止损单
+   * 在轮询时调用,确保不会有遗留的挂单意外触发
+   */
+  @handleErrors(PositionError, 'PositionManager.cleanOrphanedOrders')
+  async cleanOrphanedOrders(): Promise<{
+    success: boolean;
+    cancelledOrders: number;
+    errors: string[];
+  }> {
+    try {
+      console.log(`${LOGGING_CONFIG.EMOJIS.SEARCH} Checking for orphaned orders...`);
+
+      // 1. 获取所有开放订单
+      const allOpenOrders = await this.binanceService.getOpenOrders();
+      
+      if (allOpenOrders.length === 0) {
+        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No open orders found`);
+        return {
+          success: true,
+          cancelledOrders: 0,
+          errors: []
+        };
+      }
+
+      console.log(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${allOpenOrders.length} open order(s)`);
+
+      // 2. 获取所有仓位(包括零仓位)
+      const allPositions = await this.binanceService.getAllPositions();
+      
+      // 创建仓位映射 - symbol -> 是否有仓位
+      const positionMap = new Map<string, boolean>();
+      for (const position of allPositions) {
+        const positionAmt = parseFloat(position.positionAmt);
+        positionMap.set(position.symbol, Math.abs(positionAmt) > 0);
+      }
+
+      // 3. 找出孤立的挂单 (止盈止损单但没有对应仓位)
+      const orphanedOrders = allOpenOrders.filter(order => {
+        // 只检查止盈止损单
+        const isStopOrder = order.type === 'TAKE_PROFIT_MARKET' || 
+                           order.type === 'STOP_MARKET' ||
+                           order.type === 'TAKE_PROFIT' ||
+                           order.type === 'STOP';
+        
+        if (!isStopOrder) {
+          return false;
+        }
+
+        // 检查是否有对应的仓位
+        const hasPosition = positionMap.get(order.symbol) || false;
+        return !hasPosition;
+      });
+
+      if (orphanedOrders.length === 0) {
+        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No orphaned orders found`);
+        return {
+          success: true,
+          cancelledOrders: 0,
+          errors: []
+        };
+      }
+
+      console.log(`${LOGGING_CONFIG.EMOJIS.WARNING} Found ${orphanedOrders.length} orphaned order(s)`);
+
+      // 4. 取消孤立的挂单
+      const errors: string[] = [];
+      let cancelledCount = 0;
+
+      for (const order of orphanedOrders) {
+        try {
+          console.log(`${LOGGING_CONFIG.EMOJIS.ERROR} Cancelling orphaned ${order.type} order: ${order.symbol} (Order ID: ${order.orderId})`);
+          
+          // 从symbol中提取基础币种名称
+          const baseSymbol = order.symbol.replace('USDT', '');
+          await this.binanceService.cancelOrder(baseSymbol, order.orderId);
+          
+          cancelledCount++;
+          console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Cancelled order ${order.orderId} for ${order.symbol}`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const errorMsg = `Failed to cancel order ${order.orderId} for ${order.symbol}: ${errorMessage}`;
+          console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} ${errorMsg}`);
+          errors.push(errorMsg);
+        }
+      }
+
+      console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Orphaned orders cleanup complete: ${cancelledCount}/${orphanedOrders.length} cancelled`);
+
+      return {
+        success: errors.length === 0,
+        cancelledOrders: cancelledCount,
+        errors
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Error cleaning orphaned orders: ${errorMessage}`);
+      return {
+        success: false,
+        cancelledOrders: 0,
+        errors: [errorMessage]
+      };
+    }
+  }
 }
