@@ -453,7 +453,7 @@ describe('FollowService', () => {
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Failed to close old position'));
     });
 
-    it('should handle open position failure', async () => {
+    it('should generate plan with releasedMargin when position changed', async () => {
       // Mock binanceService to return existing position
       (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
         {
@@ -470,8 +470,6 @@ describe('FollowService', () => {
       mockTradingExecutor.getAccountInfo
         .mockResolvedValueOnce({ availableBalance: '10000.0', totalWalletBalance: '10000.0' })
         .mockResolvedValueOnce({ availableBalance: '10100.0', totalWalletBalance: '10100.0' });
-      
-      mockPositionManager.openPosition.mockResolvedValue({ success: false, symbol: 'BTCUSDT', operation: 'open', error: 'Open failed' });
 
       // Mock 订单历史
       mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
@@ -489,9 +487,12 @@ describe('FollowService', () => {
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
       const promise = followService.followAgent('test-agent', [changedPosition]);
       await jest.runAllTimersAsync();
-      await promise;
+      const result = await promise;
 
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Failed to'));
+      // 应该生成一个带有 releasedMargin 的 plan
+      expect(result).toHaveLength(1);
+      expect(result[0].releasedMargin).toBe(100); // 10100 - 10000
+      expect(result[0].action).toBe('ENTER');
     });
   });
 

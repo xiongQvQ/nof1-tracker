@@ -321,40 +321,33 @@ export class FollowService {
       return;
     }
 
-    // 如果有释放的资金,直接使用它开仓,不走资金分配流程
+    // 统一生成 FollowPlan,携带 releasedMargin 信息
+    const followPlan: FollowPlan = {
+      action: "ENTER",
+      symbol: currentPosition.symbol,
+      side: currentPosition.quantity > 0 ? "BUY" : "SELL",
+      type: "MARKET",
+      quantity: Math.abs(currentPosition.quantity),
+      leverage: currentPosition.leverage,
+      entryPrice: currentPosition.entry_price,
+      reason: releasedMargin && releasedMargin > 0 
+        ? `Reopening with released margin $${releasedMargin.toFixed(2)} (OID: ${currentPosition.entry_oid}) by ${agentId}`
+        : `Entry order changed (OID: ${currentPosition.entry_oid}) by ${agentId}`,
+      agent: agentId,
+      timestamp: Date.now(),
+      position: currentPosition,
+      priceTolerance,
+      releasedMargin: releasedMargin && releasedMargin > 0 ? releasedMargin : undefined
+    };
+
+    plans.push(followPlan);
+    
     if (releasedMargin && releasedMargin > 0) {
-      const openReason = `Reopening with released margin $${releasedMargin.toFixed(2)} (OID: ${currentPosition.entry_oid}) by ${agentId}`;
-      const openResult = await this.positionManager.openPosition(currentPosition, openReason, agentId, releasedMargin);
-
-      if (openResult.success) {
-        console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} POSITION CHANGE COMPLETED: ${currentPosition.symbol} ${currentPosition.quantity > 0 ? 'BUY' : 'SELL'} ${Math.abs(currentPosition.quantity)} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
-        console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
-      } else {
-        console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to open new position for ${currentPosition.symbol}`);
-      }
+      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} ENTRY CHANGED (with released margin $${releasedMargin.toFixed(2)}): ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
     } else {
-      // 没有释放的资金,走正常的资金分配流程
-      console.log(`${LOGGING_CONFIG.EMOJIS.INFO} No released margin available, adding to plans for capital allocation`);
-      
-      const followPlan: FollowPlan = {
-        action: "ENTER",
-        symbol: currentPosition.symbol,
-        side: currentPosition.quantity > 0 ? "BUY" : "SELL",
-        type: "MARKET",
-        quantity: Math.abs(currentPosition.quantity),
-        leverage: currentPosition.leverage,
-        entryPrice: currentPosition.entry_price,
-        reason: `Entry order changed (OID: ${currentPosition.entry_oid}) by ${agentId}`,
-        agent: agentId,
-        timestamp: Date.now(),
-        position: currentPosition,
-        priceTolerance
-      };
-
-      plans.push(followPlan);
       console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} ENTRY CHANGED: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
-      console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
     }
+    console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
   }
 
   /**
@@ -443,21 +436,7 @@ export class FollowService {
       currentPosition.symbol
     );
 
-    // 如果有释放的资金,直接使用它开仓,不走资金分配流程
-    if (releasedMargin && releasedMargin > 0) {
-      console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Using released margin $${releasedMargin.toFixed(2)} to open new position, skipping capital allocation`);
-      const openReason = `Reopening with released margin $${releasedMargin.toFixed(2)} (OID: ${currentPosition.entry_oid}) by ${agentId}`;
-      const openResult = await this.positionManager.openPosition(currentPosition, openReason, agentId, releasedMargin);
-      
-      if (openResult.success) {
-        console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} POSITION REOPENED: ${currentPosition.symbol} ${currentPosition.quantity > 0 ? 'BUY' : 'SELL'} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
-      } else {
-        console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to reopen position for ${currentPosition.symbol}`);
-      }
-      return; // 直接返回,不添加到 plans 中
-    }
-    
-    // 否则走正常的资金分配流程
+    // 统一生成 FollowPlan,携带 releasedMargin 信息
     const followPlan: FollowPlan = {
       action: "ENTER",
       symbol: currentPosition.symbol,
@@ -466,15 +445,23 @@ export class FollowService {
       quantity: Math.abs(currentPosition.quantity),
       leverage: currentPosition.leverage,
       entryPrice: currentPosition.entry_price,
-      reason: `New position opened by ${agentId} (OID: ${currentPosition.entry_oid})`,
+      reason: releasedMargin && releasedMargin > 0
+        ? `Reopening with released margin $${releasedMargin.toFixed(2)} (OID: ${currentPosition.entry_oid}) by ${agentId}`
+        : `New position opened by ${agentId} (OID: ${currentPosition.entry_oid})`,
       agent: agentId,
       timestamp: Date.now(),
       position: currentPosition,
-      priceTolerance
+      priceTolerance,
+      releasedMargin: releasedMargin && releasedMargin > 0 ? releasedMargin : undefined
     };
 
     plans.push(followPlan);
-    console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+    
+    if (releasedMargin && releasedMargin > 0) {
+      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION (with released margin $${releasedMargin.toFixed(2)}): ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+    } else {
+      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+    }
     console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
   }
 

@@ -60,6 +60,7 @@ export interface FollowPlan {
   notionalValue?: number; // 名义持仓价值
   adjustedQuantity?: number; // 调整后的数量
   allocationRatio?: number; // 分配比例
+  releasedMargin?: number; // 平仓释放的资金(用于换仓时复用)
 }
 
 /**

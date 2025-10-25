@@ -126,6 +126,14 @@ export async function executeTradeWithHistory(
 ): Promise<StopOrderExecutionResult> {
   let result: StopOrderExecutionResult;
 
+  // 如果有 releasedMargin,使用它来计算交易数量
+  if (followPlan.releasedMargin && followPlan.releasedMargin > 0 && followPlan.position) {
+    const notionalValue = followPlan.releasedMargin * followPlan.leverage;
+    const adjustedQuantity = notionalValue / followPlan.position.current_price;
+    console.log(`   💰 Using released margin: $${followPlan.releasedMargin.toFixed(2)} (${followPlan.leverage}x leverage) → Quantity: ${adjustedQuantity.toFixed(4)}`);
+    tradingPlan.quantity = adjustedQuantity;
+  }
+
   // 如果是ENTER操作且有position信息,使用带止盈止损的执行方法
   if (followPlan.action === "ENTER" && followPlan.position) {
     console.log(`   🛡️ Setting up stop orders based on exit plan...`);
