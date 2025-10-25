@@ -96,6 +96,10 @@ export async function handleFollowCommand(agentName: string, options: CommandOpt
         if (result.skipped) skippedCount++;
       }
 
+      // 注意：不需要手动更新 lastPositions！
+      // executeTradeWithHistory 已经将成功的订单保存到 order-history.json
+      // 下次 followAgent 调用时会自动从 order-history.json 重建 lastPositions
+
       console.log(`\n🎉 Follow analysis complete!`);
       console.log(`✅ Executed: ${executedCount} trade(s)`);
       console.log(`⏸️  Skipped: ${skippedCount} trade(s) (high risk)`);

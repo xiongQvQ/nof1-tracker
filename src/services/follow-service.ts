@@ -28,10 +28,11 @@ interface PositionChange {
 /**
  * 跟单服务
  * 负责处理跟单逻辑，包括仓位变化检测、资金分配等
+ * 
+ * 注意：不再使用内存缓存 lastPositions
+ * 所有历史状态都从 order-history.json 重建，确保持久化和一致性
  */
 export class FollowService {
-  private lastPositions: Map<string, Position[]> = new Map();
-
   constructor(
     private positionManager: PositionManager,
     private orderHistoryManager: OrderHistoryManager,
@@ -39,6 +40,55 @@ export class FollowService {
     private capitalManager: FuturesCapitalManager,
     private tradingExecutor: TradingExecutor
   ) {}
+
+  /**
+   * 从订单历史重建上次仓位状态
+   * 这样即使程序重启也能正确检测仓位变化
+   */
+  private rebuildLastPositionsFromHistory(agentId: string, currentPositions: Position[]): Position[] {
+    const processedOrders = this.orderHistoryManager.getProcessedOrdersByAgent(agentId);
+    
+    if (!processedOrders || processedOrders.length === 0) {
+      console.log(`📚 No order history found for agent ${agentId}, treating all positions as new`);
+      return [];
+    }
+
+    // 根据订单历史重建上次的仓位状态
+    const lastPositionsMap = new Map<string, Position>();
+    
+    // 遍历当前仓位，查找对应的历史订单
+    for (const currentPos of currentPositions) {
+      // 查找该交易对最近的已处理订单
+      const symbolOrders = processedOrders
+        .filter(order => order.symbol === currentPos.symbol)
+        .sort((a, b) => b.timestamp - a.timestamp); // 按时间倒序
+      
+      if (symbolOrders.length > 0) {
+        const lastOrder = symbolOrders[0];
+        
+        // 重建上次的仓位信息
+        lastPositionsMap.set(currentPos.symbol, {
+          symbol: currentPos.symbol,
+          entry_price: lastOrder.price || currentPos.entry_price,
+          quantity: lastOrder.side === 'BUY' ? lastOrder.quantity : -lastOrder.quantity,
+          leverage: currentPos.leverage,
+          entry_oid: lastOrder.entryOid,
+          tp_oid: 0, // 历史数据中没有止盈订单ID
+          sl_oid: 0, // 历史数据中没有止损订单ID
+          margin: 0, // 历史数据中没有保证金信息
+          current_price: currentPos.current_price,
+          unrealized_pnl: 0,
+          confidence: currentPos.confidence,
+          exit_plan: currentPos.exit_plan
+        });
+      }
+    }
+
+    const rebuiltPositions = Array.from(lastPositionsMap.values());
+    console.log(`📚 Rebuilt ${rebuiltPositions.length} positions from order history for agent ${agentId}`);
+    
+    return rebuiltPositions;
+  }
 
   /**
    * 跟单特定 AI Agent
@@ -54,29 +104,33 @@ export class FollowService {
     // 0. 清理孤立的挂单 (没有对应仓位的止盈止损单)
     await this.positionManager.cleanOrphanedOrders();
 
-    const previousPositions = this.lastPositions.get(agentId) || [];
+    // 1. 每次都从订单历史重建上次仓位状态
+    // order-history.json 是唯一的真实来源，确保程序重启或 API 数据不变时都能正确检测变化
+    const previousPositions = this.rebuildLastPositionsFromHistory(agentId, currentPositions);
+
     const followPlans: FollowPlan[] = [];
 
-    // 1. 检测仓位变化
-    const changes = this.detectPositionChanges(currentPositions, previousPositions);
+    // 2. 检测仓位变化
+    const changes = this.detectPositionChanges(currentPositions, previousPositions || []);
 
-    // 2. 处理每种变化
+    // 3. 处理每种变化
     for (const change of changes) {
       const plans = await this.handlePositionChange(change, agentId);
       followPlans.push(...plans);
     }
 
-    // 3. 检查止盈止损条件
+    // 4. 检查止盈止损条件
     const exitPlans = this.checkExitConditions(currentPositions, agentId);
     followPlans.push(...exitPlans);
-
-    // 4. 更新历史持仓记录
-    this.lastPositions.set(agentId, currentPositions);
 
     // 5. 应用资金分配
     if (totalMargin && totalMargin > 0) {
       await this.applyCapitalAllocation(followPlans, currentPositions, totalMargin, agentId);
     }
+
+    // 6. 注意：不要在这里更新 lastPositions！
+    // lastPositions 应该在订单成功执行后才更新（在 PositionManager 中）
+    // 这样才能确保只有真正执行的订单才会被记录
 
     console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Generated ${followPlans.length} follow plan(s) for agent ${agentId}`);
     return followPlans;
@@ -518,23 +572,28 @@ export class FollowService {
   }
 
   /**
-   * 获取指定 agent 的历史仓位
+   * 获取指定 agent 的历史仓位（从订单历史重建）
+   * @deprecated 不再需要此方法，直接调用 rebuildLastPositionsFromHistory
    */
-  getLastPositions(agentId: string): Position[] {
-    return this.lastPositions.get(agentId) || [];
+  getLastPositions(agentId: string, currentPositions: Position[] = []): Position[] {
+    return this.rebuildLastPositionsFromHistory(agentId, currentPositions);
   }
 
   /**
-   * 清除指定 agent 的历史仓位
+   * 清除指定 agent 的订单历史
+   * @deprecated 历史数据现在存储在 order-history.json 中
+   * 如需清除，请手动编辑该文件或使用 OrderHistoryManager
    */
   clearLastPositions(agentId: string): void {
-    this.lastPositions.delete(agentId);
+    console.log(`⚠️ clearLastPositions is deprecated. History is now in order-history.json`);
   }
 
   /**
    * 清除所有历史仓位
+   * @deprecated 历史数据现在存储在 order-history.json 中
+   * 如需清除，请手动删除该文件
    */
   clearAllLastPositions(): void {
-    this.lastPositions.clear();
+    console.log(`⚠️ clearAllLastPositions is deprecated. History is now in order-history.json`);
   }
 }

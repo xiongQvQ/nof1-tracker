@@ -57,6 +57,7 @@ describe('FollowService', () => {
 
     // Setup default mocks
     mockOrderHistoryManager.isOrderProcessed = jest.fn().mockReturnValue(false);
+    mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([]);
     mockRiskManager.checkPriceTolerance = jest.fn().mockReturnValue({
       shouldExecute: true,
       reason: 'Price within tolerance',
@@ -132,12 +133,21 @@ describe('FollowService', () => {
 
     it('should detect position closed', async () => {
       const agentId = 'test-agent';
-      const previousPositions: Position[] = [mockPosition];
       
-      // First call with position
-      await followService.followAgent(agentId, previousPositions);
+      // Mock 订单历史：之前有一个 BUY 订单
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: agentId,
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
 
-      // Second call with closed position
+      // 现在仓位已关闭（quantity = 0）
       const closedPosition: Position = { ...mockPosition, quantity: 0 };
       const result = await followService.followAgent(agentId, [closedPosition]);
 
@@ -148,12 +158,21 @@ describe('FollowService', () => {
 
     it('should detect entry_oid change', async () => {
       const agentId = 'test-agent';
-      const previousPositions: Position[] = [mockPosition];
       
-      // First call
-      await followService.followAgent(agentId, previousPositions);
+      // Mock 订单历史：之前有一个订单 entry_oid = 12345
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: agentId,
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
 
-      // Second call with changed entry_oid
+      // 现在 entry_oid 变了，说明平仓后重新开仓
       const changedPosition: Position = { ...mockPosition, entry_oid: 67890 };
       const resultPromise = followService.followAgent(agentId, [changedPosition]);
       
@@ -218,7 +237,18 @@ describe('FollowService', () => {
     });
 
     it('should detect entry_oid change', async () => {
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
       const promise = followService.followAgent('test-agent', [changedPosition]);
@@ -229,7 +259,18 @@ describe('FollowService', () => {
     });
 
     it('should detect position closed', async () => {
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const closedPosition: Position = { ...mockPosition, quantity: 0 };
       const result = await followService.followAgent('test-agent', [closedPosition]);
@@ -240,7 +281,18 @@ describe('FollowService', () => {
 
   describe('handleEntryChanged', () => {
     it('should close old position and open new position', async () => {
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
       const promise = followService.followAgent('test-agent', [changedPosition]);
@@ -288,7 +340,18 @@ describe('FollowService', () => {
     it('should handle close position failure', async () => {
       mockPositionManager.closePosition.mockResolvedValue({ success: false, symbol: 'BTCUSDT', operation: 'close', error: 'Close failed' });
 
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
       const promise = followService.followAgent('test-agent', [changedPosition]);
@@ -302,7 +365,18 @@ describe('FollowService', () => {
     it('should handle open position failure', async () => {
       mockPositionManager.openPosition.mockResolvedValue({ success: false, symbol: 'BTCUSDT', operation: 'open', error: 'Open failed' });
 
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
       const promise = followService.followAgent('test-agent', [changedPosition]);
@@ -349,7 +423,18 @@ describe('FollowService', () => {
 
   describe('handlePositionClosed', () => {
     it('should create EXIT plan when position closed', async () => {
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史：之前有一个 BUY 订单
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const closedPosition: Position = { ...mockPosition, quantity: 0 };
       const result = await followService.followAgent('test-agent', [closedPosition]);
@@ -360,8 +445,18 @@ describe('FollowService', () => {
     });
 
     it('should create BUY plan when closing short position', async () => {
-      const shortPosition: Position = { ...mockPosition, quantity: -0.1 };
-      await followService.followAgent('test-agent', [shortPosition]);
+      // Mock 订单历史：之前有一个 SELL 订单
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'SELL',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
       
       const closedPosition: Position = { ...mockPosition, quantity: 0 };
       const result = await followService.followAgent('test-agent', [closedPosition]);
@@ -495,15 +590,26 @@ describe('FollowService', () => {
 
   describe('getLastPositions', () => {
     it('should return empty array for unknown agent', () => {
-      const result = followService.getLastPositions('unknown-agent');
+      const result = followService.getLastPositions('unknown-agent', [mockPosition]);
 
       expect(result).toEqual([]);
     });
 
     it('should return last positions for agent', async () => {
-      await followService.followAgent('test-agent', [mockPosition]);
+      // Mock 订单历史
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
 
-      const result = followService.getLastPositions('test-agent');
+      const result = followService.getLastPositions('test-agent', [mockPosition]);
 
       expect(result).toHaveLength(1);
       expect(result[0].symbol).toBe('BTCUSDT');
@@ -512,34 +618,27 @@ describe('FollowService', () => {
 
   describe('clearLastPositions', () => {
     it('should clear positions for specific agent', async () => {
-      await followService.followAgent('test-agent', [mockPosition]);
-      
       followService.clearLastPositions('test-agent');
-      const result = followService.getLastPositions('test-agent');
+      const result = followService.getLastPositions('test-agent', [mockPosition]);
 
-      expect(result).toEqual([]);
+      // 现在 clearLastPositions 只是打印警告，不实际删除数据
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
     });
 
     it('should not affect other agents', async () => {
-      await followService.followAgent('agent-1', [mockPosition]);
-      await followService.followAgent('agent-2', [mockPosition]);
-      
       followService.clearLastPositions('agent-1');
 
-      expect(followService.getLastPositions('agent-1')).toEqual([]);
-      expect(followService.getLastPositions('agent-2')).toHaveLength(1);
+      // 现在 clearLastPositions 只是打印警告
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
     });
   });
 
   describe('clearAllLastPositions', () => {
     it('should clear all positions', async () => {
-      await followService.followAgent('agent-1', [mockPosition]);
-      await followService.followAgent('agent-2', [mockPosition]);
-      
       followService.clearAllLastPositions();
 
-      expect(followService.getLastPositions('agent-1')).toEqual([]);
-      expect(followService.getLastPositions('agent-2')).toEqual([]);
+      // 现在 clearAllLastPositions 只是打印警告
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
     });
   });
 

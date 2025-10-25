@@ -215,6 +215,13 @@ export class ApiAnalyzer {
   }
 
   /**
+   * 获取 agent 数据（公开方法）
+   */
+  async getAgentData(agentId: string): Promise<AgentAccount | null> {
+    return await this.apiClient.getAgentData(agentId);
+  }
+
+  /**
    * 清理资源，关闭所有连接
    */
   destroy(): void {
