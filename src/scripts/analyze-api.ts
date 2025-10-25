@@ -42,6 +42,7 @@ export class ApiAnalyzer {
   private configManager: ConfigManager;
   private binanceService: BinanceService;
   private tradingExecutor: TradingExecutor;
+  private orderHistoryManager: OrderHistoryManager;
 
   constructor(
     baseUrlOrConfigManager?: string | ConfigManager,
@@ -67,19 +68,19 @@ export class ApiAnalyzer {
       process.env[ENV_VARS.BINANCE_API_SECRET] || ""
     );
     this.tradingExecutor = new TradingExecutor();
-    const orderHistoryManager = new OrderHistoryManager();
+    this.orderHistoryManager = new OrderHistoryManager();
     const riskManager = new RiskManager(this.configManager);
     const capitalManager = new FuturesCapitalManager();
 
     this.positionManager = new PositionManager(
       this.binanceService,
       this.tradingExecutor,
-      orderHistoryManager
+      this.orderHistoryManager
     );
 
     this.followService = new FollowService(
       this.positionManager,
-      orderHistoryManager,
+      this.orderHistoryManager,
       riskManager,
       capitalManager,
       this.tradingExecutor
@@ -219,6 +220,13 @@ export class ApiAnalyzer {
    */
   async getAgentData(agentId: string): Promise<AgentAccount | null> {
     return await this.apiClient.getAgentData(agentId);
+  }
+
+  /**
+   * 获取订单历史管理器
+   */
+  getOrderHistoryManager(): OrderHistoryManager {
+    return this.orderHistoryManager;
   }
 
   /**

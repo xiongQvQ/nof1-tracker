@@ -9,11 +9,13 @@ import { CommandOptions, ServiceContainer } from '../types/command';
  * 初始化服务容器
  */
 export function initializeServices(includeOrderHistory = false): ServiceContainer {
+  const analyzer = new ApiAnalyzer();
   return {
-    analyzer: new ApiAnalyzer(),
+    analyzer,
     executor: new TradingExecutor(),
     riskManager: new RiskManager(),
-    ...(includeOrderHistory && { orderHistoryManager: new OrderHistoryManager() })
+    // 使用 analyzer 内部的 orderHistoryManager 实例,确保一致性
+    ...(includeOrderHistory && { orderHistoryManager: analyzer.getOrderHistoryManager() })
   };
 }
 
@@ -161,6 +163,7 @@ export async function executeTradeWithHistory(
 
   // 保存订单历史
   if (result.success && orderHistoryManager && followPlan.position?.entry_oid && result.orderId) {
+    console.log(`   💾 Saving order to history: ${followPlan.symbol} (OID: ${followPlan.position.entry_oid})`);
     orderHistoryManager.saveProcessedOrder(
       followPlan.position.entry_oid,
       followPlan.symbol,
@@ -170,6 +173,15 @@ export async function executeTradeWithHistory(
       followPlan.entryPrice,
       result.orderId.toString()
     );
+  } else if (result.success) {
+    // 调试信息：为什么没有保存订单历史
+    if (!orderHistoryManager) {
+      console.log(`   ⚠️ Order history not saved: orderHistoryManager is missing`);
+    } else if (!followPlan.position?.entry_oid) {
+      console.log(`   ⚠️ Order history not saved: entry_oid is missing (position: ${!!followPlan.position})`);
+    } else if (!result.orderId) {
+      console.log(`   ⚠️ Order history not saved: orderId is missing`);
+    }
   }
 
   if (!result.success) {
