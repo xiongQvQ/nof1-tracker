@@ -74,6 +74,8 @@ program
   .option('--group-by <type>', 'group results by symbol or all', 'all')
   .option('--format <type>', 'output format: table or json', 'table')
   .option('--refresh', 'force refresh cache and fetch fresh data')
+  .option('--exclude-unrealized', 'exclude current positions unrealized P&L from analysis')
+  .option('--unrealized-only', 'show only current positions unrealized P&L')
   .action(async (options: ProfitCommandOptions) => {
     try {
       await handleProfitCommand(options);

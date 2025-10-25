@@ -135,7 +135,7 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
 
 #### 3. 盈利统计分析
 ```bash
-# 统计跟单开始以来的总盈利（默认）
+# 统计跟单开始以来的总盈利（默认包含浮动盈亏）
 npm start -- profit
 
 # 统计指定时间范围的盈利
@@ -151,6 +151,15 @@ npm start -- profit --format json
 
 # 强制刷新缓存数据
 npm start -- profit --refresh
+
+# 包含当前仓位的浮动盈亏（默认行为）
+npm start -- profit
+
+# 仅显示当前仓位的浮动盈亏（不含已实现交易）
+npm start -- profit --unrealized-only
+
+# 排除浮动盈亏（仅分析已实现交易）
+npm start -- profit --exclude-unrealized
 ```
 
 **profit命令选项说明**：
@@ -159,11 +168,15 @@ npm start -- profit --refresh
 - `--group-by <type>`: 分组方式：symbol（按交易对）或all（全部）
 - `--format <type>`: 输出格式：table（表格）或json（JSON）
 - `--refresh`: 强制刷新缓存，获取最新数据
+- `--exclude-unrealized`: 排除当前仓位的浮动盈亏，仅分析已实现交易
+- `--unrealized-only`: 仅显示当前仓位的浮动盈亏
 
 **输出统计信息**：
-- **基础统计**: 总交易次数、总盈亏（扣除手续费）、胜率、平均盈利/亏损
+- **基础统计**: 总交易次数、已实现盈亏（扣除手续费）、胜率、平均盈利/亏损
+- **浮动盈亏**: 当前仓位数量、总浮动盈亏、详细仓位信息（默认包含，使用--exclude-unrealized时排除）
+- **总盈亏**: 已实现盈亏 + 浮动盈亏的完整盈利情况
 - **手续费分析**: 总手续费支出、平均每笔手续费
-- **风险指标**: 最大单笔盈利、最大单笔亏损
+- **风险指标**: 最大单笔盈利、最大单笔亏损、浮动盈亏风险提示
 - **分组统计**: 按交易对分组的详细盈利情况
 
 #### 4. 系统状态检查
@@ -213,8 +226,14 @@ npm start -- follow claude-sonnet-4-5 --interval 60 --risk-only
 
 **盈利分析**：
 ```bash
-# 查看总盈利情况
+# 查看总盈利情况（默认包含浮动盈亏）
 npm start -- profit
+
+# 仅查看已实现盈利（排除浮动盈亏）
+npm start -- profit --exclude-unrealized
+
+# 仅查看当前仓位的浮动盈亏
+npm start -- profit --unrealized-only
 
 # 按不同时间范围分析
 npm start -- profit --since 1d      # 最近1天
@@ -224,6 +243,12 @@ npm start -- profit --since 30d     # 最近1月
 # 按交易对分析
 npm start -- profit --pair BTCUSDT --since 7d
 npm start -- profit --pair ETHUSDT --format json
+
+# JSON格式输出（默认包含浮动盈亏）
+npm start -- profit --format json
+
+# 仅浮动盈亏的JSON格式输出
+npm start -- profit --unrealized-only --format json
 ```
 
 ## 📊 架构概览

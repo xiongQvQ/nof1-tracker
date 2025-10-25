@@ -134,7 +134,7 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
 
 #### 3. Profit Statistics Analysis
 ```bash
-# Analyze total profit since copy trading started (default)
+# Analyze total profit since copy trading started (includes unrealized P&L by default)
 npm start -- profit
 
 # Analyze profit for specified time range
@@ -150,6 +150,15 @@ npm start -- profit --format json
 
 # Force refresh cached data
 npm start -- profit --refresh
+
+# Include current positions unrealized P&L (default behavior)
+npm start -- profit
+
+# Show only current positions unrealized P&L (without realized trades)
+npm start -- profit --unrealized-only
+
+# Exclude unrealized P&L from analysis (realized trades only)
+npm start -- profit --exclude-unrealized
 ```
 
 **Profit Command Options**:
@@ -158,11 +167,15 @@ npm start -- profit --refresh
 - `--group-by <type>`: Group by method: symbol (by trading pair) or all (all)
 - `--format <type>`: Output format: table (table) or json (JSON)
 - `--refresh`: Force refresh cache to get latest data
+- `--exclude-unrealized`: Exclude current positions unrealized P&L from analysis (realized trades only)
+- `--unrealized-only`: Show only current positions unrealized P&L
 
 **Output Statistics**:
-- **Basic Statistics**: Total trades, total profit/loss (including fees), win rate, average profit/loss
+- **Basic Statistics**: Total trades, realized profit/loss (including fees), win rate, average profit/loss
+- **Unrealized P&L**: Current positions count, total unrealized P&L, detailed position info (included by default, excluded when using --exclude-unrealized)
+- **Total P&L**: Complete profit situation including realized + unrealized P&L
 - **Fee Analysis**: Total fee expenses, average fee per trade
-- **Risk Metrics**: Maximum single profit, maximum single loss
+- **Risk Metrics**: Maximum single profit, maximum single loss, unrealized P&L risk warnings
 - **Grouped Statistics**: Detailed profit analysis grouped by trading pair
 
 #### 4. System Status Check
@@ -212,8 +225,14 @@ npm start -- follow claude-sonnet-4-5 --interval 60 --risk-only
 
 **Profit Analysis**:
 ```bash
-# View overall profit situation
+# View overall profit situation (includes unrealized P&L by default)
 npm start -- profit
+
+# View only realized profit (exclude unrealized P&L)
+npm start -- profit --exclude-unrealized
+
+# View only current positions unrealized P&L
+npm start -- profit --unrealized-only
 
 # Analyze different time ranges
 npm start -- profit --since 1d      # Last 1 day
@@ -223,6 +242,12 @@ npm start -- profit --since 30d     # Last 1 month
 # Analyze by trading pair
 npm start -- profit --pair BTCUSDT --since 7d
 npm start -- profit --pair ETHUSDT --format json
+
+# JSON output with unrealized P&L (default)
+npm start -- profit --format json
+
+# JSON output for unrealized P&L only
+npm start -- profit --unrealized-only --format json
 ```
 
 ## 📊 Architecture Overview
