@@ -26,6 +26,9 @@ npm start -- follow deepseek-chat-v3.1 --risk-only
 
 # 5. Continuous monitoring (check every 30 seconds)
 npm start -- follow gpt-5 --interval 30
+
+# 6. View profit statistics
+npm start -- profit
 ```
 
 ## 🚀 Features
@@ -34,6 +37,7 @@ npm start -- follow gpt-5 --interval 30
 - **📊 Real-time Monitoring**: Configurable polling interval for continuous agent tracking
 - **🔄 Smart Copy Trading**: Auto-detect open, close, switch positions (OID changes), and stop-loss/take-profit
 - **⚡ Futures Trading**: Full support for Binance USDT perpetual futures, 1x-125x leverage
+- **📈 Profit Analysis**: Accurate profit analysis based on real trading data (including fee statistics)
 - **🛡️ Risk Control**: Support `--risk-only` mode for observation without execution
 
 ## 🤖 Supported AI Agents
@@ -128,7 +132,40 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
 - `-t, --price-tolerance <percentage>`: Price tolerance percentage, default 1.0%
 - `-m, --total-margin <amount>`: Total margin (USDT), default 10
 
-#### 3. System Status Check
+#### 3. Profit Statistics Analysis
+```bash
+# Analyze total profit since copy trading started (default)
+npm start -- profit
+
+# Analyze profit for specified time range
+npm start -- profit --since 7d        # Last 7 days
+npm start -- profit --since 2024-01-01 # Since January 1, 2024
+npm start -- profit --since 1704067200000 # Using timestamp
+
+# Analyze specific trading pair
+npm start -- profit --pair BTCUSDT
+
+# JSON format output
+npm start -- profit --format json
+
+# Force refresh cached data
+npm start -- profit --refresh
+```
+
+**Profit Command Options**:
+- `-s, --since <time>`: Time filter, supports "7d" (last 7 days), "2024-01-01" (specific date), timestamp format. If not specified, uses order-history.json creation time
+- `-p, --pair <symbol>`: Specific trading pair (e.g., BTCUSDT)
+- `--group-by <type>`: Group by method: symbol (by trading pair) or all (all)
+- `--format <type>`: Output format: table (table) or json (JSON)
+- `--refresh`: Force refresh cache to get latest data
+
+**Output Statistics**:
+- **Basic Statistics**: Total trades, total profit/loss (including fees), win rate, average profit/loss
+- **Fee Analysis**: Total fee expenses, average fee per trade
+- **Risk Metrics**: Maximum single profit, maximum single loss
+- **Grouped Statistics**: Detailed profit analysis grouped by trading pair
+
+#### 4. System Status Check
 ```bash
 npm start -- status
 ```
@@ -157,6 +194,9 @@ npm start -- follow buynhold_btc --risk-only
 
 # 4. Single copy trade test
 npm start -- follow deepseek-chat-v3.1
+
+# 5. View profit statistics
+npm start -- profit
 ```
 
 **Continuous Monitoring**:
@@ -170,6 +210,21 @@ npm start -- follow deepseek-chat-v3.1 --interval 45
 npm start -- follow claude-sonnet-4-5 --interval 60 --risk-only
 ```
 
+**Profit Analysis**:
+```bash
+# View overall profit situation
+npm start -- profit
+
+# Analyze different time ranges
+npm start -- profit --since 1d      # Last 1 day
+npm start -- profit --since 7d      # Last 1 week
+npm start -- profit --since 30d     # Last 1 month
+
+# Analyze by trading pair
+npm start -- profit --pair BTCUSDT --since 7d
+npm start -- profit --pair ETHUSDT --format json
+```
+
 ## 📊 Architecture Overview
 
 ```
@@ -177,12 +232,16 @@ src/
 ├── commands/               # Command handlers
 │   ├── agents.ts          # Get AI agent list
 │   ├── follow.ts          # Copy trade command (core)
+│   ├── profit.ts          # Profit statistics analysis
 │   └── status.ts          # System status check
 ├── services/              # Core services
 │   ├── api-client.ts      # Nof1 API client
 │   ├── binance-service.ts # Binance API integration
 │   ├── trading-executor.ts # Trade execution engine
 │   ├── position-manager.ts # Position management
+│   ├── profit-calculator.ts # Profit calculation engine
+│   ├── trade-history-service.ts # Trade history service
+│   ├── order-history-manager.ts # Order history management
 │   └── futures-capital-manager.ts # Futures capital management
 ├── scripts/
 │   └── analyze-api.ts     # API analysis engine (copy trading strategy)
@@ -193,6 +252,7 @@ src/
 
 **Core Flow**:
 ```
+Copy Trading Flow:
 User Command → follow handler → ApiAnalyzer analyzes agent signals
          ↓
     Detect trading actions (open/close/switch/stop-loss)
@@ -200,6 +260,15 @@ User Command → follow handler → ApiAnalyzer analyzes agent signals
     Generate FollowPlan → TradingExecutor executes
          ↓
     BinanceService → Binance API → Trade completed
+
+Profit Analysis Flow:
+User Command → profit handler → TradeHistoryService fetches historical trades
+         ↓
+    ProfitCalculator calculates profit (based on realizedPnl and fees)
+         ↓
+    Generate statistics report (basic stats, grouped stats, risk metrics)
+         ↓
+    Output results (table/JSON format)
 ```
 
 ## ⚠️ Important Notes

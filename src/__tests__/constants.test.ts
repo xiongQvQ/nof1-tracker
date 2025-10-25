@@ -2,6 +2,7 @@ import {
   API_CONFIG,
   TIME_CONFIG,
   LOGGING_CONFIG,
+  LogLevel,
   ENV_VARS,
   TRADING_CONFIG,
   CACHE_CONFIG,
@@ -62,7 +63,29 @@ describe('Constants Configuration', () => {
     });
   });
 
+  describe('LogLevel', () => {
+    it('should have correct enum values', () => {
+      expect(LogLevel.ERROR).toBe(0);
+      expect(LogLevel.WARN).toBe(1);
+      expect(LogLevel.INFO).toBe(2);
+      expect(LogLevel.DEBUG).toBe(3);
+      expect(LogLevel.VERBOSE).toBe(4);
+    });
+
+    it('should have increasing severity levels', () => {
+      expect(LogLevel.ERROR).toBeLessThan(LogLevel.WARN);
+      expect(LogLevel.WARN).toBeLessThan(LogLevel.INFO);
+      expect(LogLevel.INFO).toBeLessThan(LogLevel.DEBUG);
+      expect(LogLevel.DEBUG).toBeLessThan(LogLevel.VERBOSE);
+    });
+  });
+
   describe('LOGGING_CONFIG', () => {
+    it('should have LEVEL property', () => {
+      expect(LOGGING_CONFIG.LEVEL).toBeDefined();
+      expect(typeof LOGGING_CONFIG.LEVEL).toBe('number');
+    });
+
     it('should have all required emoji properties', () => {
       expect(LOGGING_CONFIG.EMOJIS).toBeDefined();
       expect(LOGGING_CONFIG.EMOJIS.SUCCESS).toBe('✅');
