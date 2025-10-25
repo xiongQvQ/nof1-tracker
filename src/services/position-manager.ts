@@ -180,7 +180,8 @@ export class PositionManager {
           position.symbol,
           agentId,
           position.quantity > 0 ? "BUY" : "SELL",
-          Math.abs(position.quantity)
+          Math.abs(position.quantity),
+          position.entry_price
         );
 
         return {

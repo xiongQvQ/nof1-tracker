@@ -65,6 +65,13 @@ export class OrderHistoryManager {
   }
 
   /**
+   * 重新加载订单历史(用于手动修改文件后刷新)
+   */
+  reloadHistory(): void {
+    this.historyData = this.loadOrderHistory();
+  }
+
+  /**
    * 检查订单是否已处理
    */
   isOrderProcessed(entryOid: number, symbol: string): boolean {
@@ -125,6 +132,8 @@ export class OrderHistoryManager {
    * 获取特定代理的已处理订单
    */
   getProcessedOrdersByAgent(agent: string): ProcessedOrder[] {
+    // 每次获取时重新加载,确保数据是最新的
+    this.reloadHistory();
     return this.historyData.processedOrders.filter(order => order.agent === agent);
   }
 
