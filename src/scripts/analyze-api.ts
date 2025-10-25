@@ -40,6 +40,8 @@ export class ApiAnalyzer {
   private positionManager: PositionManager;
   private followService: FollowService;
   private configManager: ConfigManager;
+  private binanceService: BinanceService;
+  private tradingExecutor: TradingExecutor;
 
   constructor(
     baseUrlOrConfigManager?: string | ConfigManager,
@@ -60,18 +62,18 @@ export class ApiAnalyzer {
     this.validateEnvironment();
 
     // 初始化服务
-    const binanceService = new BinanceService(
+    this.binanceService = new BinanceService(
       process.env[ENV_VARS.BINANCE_API_KEY] || "",
       process.env[ENV_VARS.BINANCE_API_SECRET] || ""
     );
-    const tradingExecutor = new TradingExecutor();
+    this.tradingExecutor = new TradingExecutor();
     const orderHistoryManager = new OrderHistoryManager();
     const riskManager = new RiskManager(this.configManager);
     const capitalManager = new FuturesCapitalManager();
 
     this.positionManager = new PositionManager(
-      binanceService,
-      tradingExecutor,
+      this.binanceService,
+      this.tradingExecutor,
       orderHistoryManager
     );
 
@@ -80,7 +82,7 @@ export class ApiAnalyzer {
       orderHistoryManager,
       riskManager,
       capitalManager,
-      tradingExecutor
+      this.tradingExecutor
     );
 
     this.apiClient = apiClient || new ApiClient();
@@ -210,5 +212,17 @@ export class ApiAnalyzer {
    */
   clearAllAgentHistory(): void {
     this.followService.clearAllLastPositions();
+  }
+
+  /**
+   * 清理资源，关闭所有连接
+   */
+  destroy(): void {
+    if (this.binanceService) {
+      this.binanceService.destroy();
+    }
+    if (this.tradingExecutor) {
+      this.tradingExecutor.destroy();
+    }
   }
 }

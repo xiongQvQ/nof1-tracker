@@ -396,7 +396,7 @@ describe("BinanceService - API Methods", () => {
 
     it("should handle empty parameters", () => {
       (CryptoJS.HmacSHA256 as jest.Mock) = jest.fn().mockImplementation((qs: string) => {
-        expect(qs).toMatch(/^timestamp=\d+$/);
+        expect(qs).toMatch(/^recvWindow=60000&timestamp=\d+$/);
         return { toString: () => 'test_signature' };
       });
 

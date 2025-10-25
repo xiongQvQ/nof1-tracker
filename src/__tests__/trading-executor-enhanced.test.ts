@@ -59,6 +59,7 @@ describe("TradingExecutor - Enhanced Coverage", () => {
     mockBinanceService.get24hrTicker = jest.fn().mockResolvedValue({
       lastPrice: '50000.0'
     });
+    mockBinanceService.getPositions = jest.fn().mockResolvedValue([]);
     mockBinanceService.convertToBinanceOrder = jest.fn().mockReturnValue({
       symbol: 'BTCUSDT',
       side: 'BUY',

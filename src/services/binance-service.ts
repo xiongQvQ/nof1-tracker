@@ -1,5 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import CryptoJS from 'crypto-js';
+import http from 'http';
+import https from 'https';
 
 export interface BinanceOrder {
   symbol: string;
@@ -89,6 +91,9 @@ export class BinanceService {
   private baseUrl: string;
   private client: AxiosInstance;
   private symbolInfoCache: Map<string, any> = new Map();
+  private serverTimeOffset: number = 0; // 服务器时间偏移量(ms)
+  private httpAgent: http.Agent;
+  private httpsAgent: https.Agent;
 
   constructor(apiKey: string, apiSecret: string, testnet?: boolean) {
     // 如果没有明确指定，则从环境变量读取
@@ -101,12 +106,23 @@ export class BinanceService {
       ? 'https://testnet.binancefuture.com'
       : 'https://fapi.binance.com';
 
+    // 创建自定义 agents 以便稍后清理
+    this.httpAgent = new http.Agent({ keepAlive: true });
+    this.httpsAgent = new https.Agent({ keepAlive: true });
+
     this.client = axios.create({
       baseURL: this.baseUrl,
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
       },
+      httpAgent: this.httpAgent,
+      httpsAgent: this.httpsAgent,
+    });
+
+    // 初始化时同步服务器时间
+    this.syncServerTime().catch(err => {
+      console.warn('⚠️ Failed to sync server time:', err.message);
     });
   }
 
@@ -226,14 +242,51 @@ export class BinanceService {
   /**
    * 创建带签名的请求
    */
+  /**
+   * 同步服务器时间
+   * 公共方法,允许在遇到时间同步错误时手动重新同步
+   */
+  public async syncServerTime(): Promise<void> {
+    try {
+      const localTime = Date.now();
+      const response = await this.client.get('/fapi/v1/time');
+      const serverTime = response.data.serverTime;
+      this.serverTimeOffset = serverTime - localTime;
+      console.log(`⏰ Server time synced. Offset: ${this.serverTimeOffset}ms`);
+    } catch (error) {
+      console.warn('⚠️ Failed to sync server time:', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  /**
+   * 清理资源，关闭所有连接
+   */
+  public destroy(): void {
+    // 关闭 HTTP agents
+    if (this.httpAgent) {
+      this.httpAgent.destroy();
+    }
+    if (this.httpsAgent) {
+      this.httpsAgent.destroy();
+    }
+  }
+
+  /**
+   * 获取调整后的时间戳
+   */
+  private getAdjustedTimestamp(): number {
+    return Date.now() + this.serverTimeOffset;
+  }
+
   private async makeSignedRequest<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'DELETE' = 'GET',
     params: Record<string, any> = {}
   ): Promise<T> {
     try {
-      const timestamp = Date.now();
-      const allParams: Record<string, any> = { ...params, timestamp };
+      const timestamp = this.getAdjustedTimestamp();
+      const recvWindow = 60000; // 60秒窗口,避免时间同步问题
+      const allParams: Record<string, any> = { ...params, timestamp, recvWindow };
 
       // 构建查询字符串
       const queryString = Object.keys(allParams)
@@ -266,6 +319,29 @@ export class BinanceService {
 
         // Log error details for debugging
         console.error(`API Error [${errorCode || 'UNKNOWN'}]: ${errorMessage}`);
+        
+        // 处理时间同步错误 (-1021)
+        if (errorCode === -1021) {
+          console.warn('⏰ Timestamp error detected, syncing server time and retrying...');
+          await this.syncServerTime();
+          // 重试一次
+          const retryTimestamp = this.getAdjustedTimestamp();
+          const retryParams: Record<string, any> = { ...params, timestamp: retryTimestamp, recvWindow: 60000 };
+          const retryQueryString = Object.keys(retryParams)
+            .sort()
+            .map(key => `${key}=${encodeURIComponent(retryParams[key])}`)
+            .join('&');
+          const retrySignature = this.createSignature(retryQueryString);
+          const retryUrl = `${endpoint}?${retryQueryString}&signature=${retrySignature}`;
+          const retryConfig: AxiosRequestConfig = {
+            method,
+            url: retryUrl,
+            headers: { 'X-MBX-APIKEY': this.apiKey }
+          };
+          const retryResponse = await this.client.request<T>(retryConfig);
+          return retryResponse.data;
+        }
+        
         if (errorCode === -2019) {
           console.error('💰 Margin insufficient - check available balance and existing positions');
         }

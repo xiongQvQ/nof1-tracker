@@ -146,7 +146,7 @@ export class FollowService {
         break;
 
       case 'new_position':
-        this.handleNewPosition(change, agentId, plans);
+        await this.handleNewPosition(change, agentId, plans);
         break;
 
       case 'position_closed':
@@ -188,8 +188,7 @@ export class FollowService {
     const closeResult = await this.positionManager.closePosition(previousPosition.symbol, closeReason);
 
     if (closeResult.success) {
-      // 等待一小段时间确保平仓完成
-      await new Promise(resolve => setTimeout(resolve, TIME_CONFIG.BETWEEN_OPERATIONS_DELAY));
+      // closePosition 内部已经包含验证逻辑(等待2秒并验证仓位关闭),无需额外等待
 
       // 3. 平仓后获取账户余额,计算释放的资金
       let releasedMargin: number | undefined;
@@ -248,11 +247,11 @@ export class FollowService {
   /**
    * 处理新仓位
    */
-  private handleNewPosition(
+  private async handleNewPosition(
     change: PositionChange,
     agentId: string,
     plans: FollowPlan[]
-  ): void {
+  ): Promise<void> {
     const { currentPosition } = change;
     if (!currentPosition) return;
 
@@ -262,6 +261,68 @@ export class FollowService {
       return;
     }
 
+    // 检查 Binance 是否已有该币种的仓位(防止程序重启后无法检测到 entry_oid 变化)
+    let releasedMargin: number | undefined;
+    try {
+      const binancePositions = await this.positionManager['binanceService'].getPositions();
+      const targetSymbol = this.positionManager['binanceService'].convertSymbol(currentPosition.symbol);
+      
+      console.log(`${LOGGING_CONFIG.EMOJIS.SEARCH} Checking for existing positions on Binance for ${currentPosition.symbol} (converted: ${targetSymbol})...`);
+      console.log(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${binancePositions.length} total position(s) on Binance`);
+      
+      const existingPosition = binancePositions.find(
+        p => p.symbol === targetSymbol && parseFloat(p.positionAmt) !== 0
+      );
+
+      if (existingPosition) {
+        const positionAmt = parseFloat(existingPosition.positionAmt);
+        console.log(`${LOGGING_CONFIG.EMOJIS.WARNING} Found existing position on Binance: ${existingPosition.symbol} ${positionAmt > 0 ? 'LONG' : 'SHORT'} ${Math.abs(positionAmt)}`);
+        console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Closing existing position before opening new entry (OID: ${currentPosition.entry_oid})...`);
+        
+        // 获取平仓前余额
+        let balanceBeforeClose: number | undefined;
+        try {
+          const accountInfo = await this.tradingExecutor.getAccountInfo();
+          balanceBeforeClose = parseFloat(accountInfo.availableBalance);
+          console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance before closing: $${balanceBeforeClose.toFixed(2)} USDT`);
+        } catch (error) {
+          console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance before close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+        const closeReason = `Closing existing position before opening new entry (OID: ${currentPosition.entry_oid})`;
+        const closeResult = await this.positionManager.closePosition(currentPosition.symbol, closeReason);
+        
+        if (!closeResult.success) {
+          console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to close existing position for ${currentPosition.symbol}, skipping new position`);
+          return;
+        }
+        
+        // 获取平仓后余额,计算释放的资金
+        if (balanceBeforeClose !== undefined) {
+          try {
+            // 额外等待1秒确保资金完全释放
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const accountInfo = await this.tradingExecutor.getAccountInfo();
+            const balanceAfterClose = parseFloat(accountInfo.availableBalance);
+            releasedMargin = balanceAfterClose - balanceBeforeClose;
+            console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance after closing: $${balanceAfterClose.toFixed(2)} USDT`);
+            console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Released margin from closing: $${releasedMargin.toFixed(2)} USDT (${releasedMargin >= 0 ? 'Profit' : 'Loss'})`);
+            
+            if (releasedMargin <= 0) {
+              console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Position closed with loss, insufficient margin released. Will use available balance.`);
+              releasedMargin = undefined;
+            }
+          } catch (error) {
+            console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance after close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+      } else {
+        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No existing position found on Binance for ${targetSymbol}, proceeding with new position`);
+      }
+    } catch (error) {
+      console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to check existing positions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
     // 添加价格容忍度检查
     const priceTolerance = this.riskManager.checkPriceTolerance(
       currentPosition.entry_price,
@@ -269,6 +330,21 @@ export class FollowService {
       currentPosition.symbol
     );
 
+    // 如果有释放的资金,直接使用它开仓,不走资金分配流程
+    if (releasedMargin && releasedMargin > 0) {
+      console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Using released margin $${releasedMargin.toFixed(2)} to open new position, skipping capital allocation`);
+      const openReason = `Reopening with released margin $${releasedMargin.toFixed(2)} (OID: ${currentPosition.entry_oid}) by ${agentId}`;
+      const openResult = await this.positionManager.openPosition(currentPosition, openReason, agentId, releasedMargin);
+      
+      if (openResult.success) {
+        console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} POSITION REOPENED: ${currentPosition.symbol} ${currentPosition.quantity > 0 ? 'BUY' : 'SELL'} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+      } else {
+        console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to reopen position for ${currentPosition.symbol}`);
+      }
+      return; // 直接返回,不添加到 plans 中
+    }
+    
+    // 否则走正常的资金分配流程
     const followPlan: FollowPlan = {
       action: "ENTER",
       symbol: currentPosition.symbol,

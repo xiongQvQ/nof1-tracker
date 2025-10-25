@@ -82,9 +82,9 @@ export class TradingExecutor {
         };
       }
 
-      // 检查账户余额和保证金
+      // 获取账户信息检查余额
       try {
-        const accountInfo = await this.getAccountInfo();
+        const accountInfo = await this.binanceService.getAccountInfo();
         const availableMargin = parseFloat(accountInfo.availableBalance);
         const totalWalletBalance = parseFloat(accountInfo.totalWalletBalance);
 
@@ -99,6 +99,15 @@ export class TradingExecutor {
           currentPrice = 1000; // 默认保守价格
         }
 
+        // 检查是否是平仓操作(减仓)
+        const positions = await this.binanceService.getPositions();
+        const currentPosition = positions.find(p => p.symbol === tradingPlan.symbol);
+        const currentPositionAmt = currentPosition ? parseFloat(currentPosition.positionAmt) : 0;
+        
+        // 判断是否是平仓: 如果当前有仓位且交易方向相反,则是平仓
+        const isClosing = (currentPositionAmt > 0 && tradingPlan.side === 'SELL') || 
+                         (currentPositionAmt < 0 && tradingPlan.side === 'BUY');
+
         // 计算所需保证金
         const requiredMargin = (tradingPlan.quantity * currentPrice) / tradingPlan.leverage;
         const notionalValue = tradingPlan.quantity * currentPrice;
@@ -108,6 +117,8 @@ export class TradingExecutor {
         console.log(`   Available Balance: ${availableMargin.toFixed(2)} USDT`);
         console.log(`   Current Price: ${currentPrice.toFixed(2)} USDT`);
         console.log(`   Position Size: ${tradingPlan.quantity} ${tradingPlan.symbol}`);
+        console.log(`   Current Position: ${currentPositionAmt} (${currentPositionAmt > 0 ? 'LONG' : currentPositionAmt < 0 ? 'SHORT' : 'NONE'})`);
+        console.log(`   Operation: ${isClosing ? '🔻 CLOSING' : '🔺 OPENING'} position`);
         console.log(`   Leverage: ${tradingPlan.leverage}x`);
         console.log(`   Notional Value: ${notionalValue.toFixed(2)} USDT`);
         console.log(`   Required Margin: ${requiredMargin.toFixed(2)} USDT`);
@@ -121,24 +132,44 @@ export class TradingExecutor {
         console.log(`   - Total Open Order Initial Margin: ${accountInfo.totalOpenOrderInitialMargin || 'N/A'}`);
         console.log(`   - Total Cross Wallet Balance: ${accountInfo.totalCrossWalletBalance || 'N/A'}`);
 
-        if (requiredMargin > availableMargin) {
+        // 只对开仓操作检查保证金,平仓操作会释放保证金不需要检查
+        if (!isClosing && requiredMargin > availableMargin) {
           const deficit = requiredMargin - availableMargin;
-          console.error(`❌ MARGIN INSUFFICIENT:`);
-          console.error(`   Required: ${requiredMargin.toFixed(2)} USDT`);
-          console.error(`   Available: ${availableMargin.toFixed(2)} USDT`);
-          console.error(`   Deficit: ${deficit.toFixed(2)} USDT`);
-          console.error(`   Notional Value: ${notionalValue.toFixed(2)} USDT`);
-          console.error(`   Current Price: $${currentPrice.toFixed(2)}`);
-          return {
-            success: false,
-            error: `Insufficient margin: Required ${requiredMargin.toFixed(2)} USDT, Available ${availableMargin.toFixed(2)} USDT (Deficit: ${deficit.toFixed(2)} USDT). Notional: ${notionalValue.toFixed(2)} USDT`
-          };
+          
+          // 如果差额很小(小于可用余额的10%),自动调整数量以适应可用余额
+          if (deficit < availableMargin * 0.1) {
+            console.warn(`⚠️ Margin slightly insufficient (deficit: ${deficit.toFixed(2)} USDT), adjusting quantity...`);
+            
+            // 使用95%的可用余额(保留5%缓冲)
+            const adjustedMargin = availableMargin * 0.95;
+            const adjustedQuantity = (adjustedMargin * tradingPlan.leverage) / currentPrice;
+            
+            console.log(`💡 Adjusted quantity: ${tradingPlan.quantity.toFixed(4)} → ${adjustedQuantity.toFixed(4)}`);
+            console.log(`💡 Adjusted margin: ${requiredMargin.toFixed(2)} → ${adjustedMargin.toFixed(2)} USDT`);
+            
+            // 更新交易计划的数量
+            tradingPlan.quantity = adjustedQuantity;
+          } else {
+            // 差额太大,无法调整
+            console.error(`❌ MARGIN INSUFFICIENT:`);
+            console.error(`   Required: ${requiredMargin.toFixed(2)} USDT`);
+            console.error(`   Available: ${availableMargin.toFixed(2)} USDT`);
+            console.error(`   Deficit: ${deficit.toFixed(2)} USDT`);
+            console.error(`   Notional Value: ${notionalValue.toFixed(2)} USDT`);
+            console.error(`   Current Price: $${currentPrice.toFixed(2)}`);
+            return {
+              success: false,
+              error: `Insufficient margin: Required ${requiredMargin.toFixed(2)} USDT, Available ${availableMargin.toFixed(2)} USDT (Deficit: ${deficit.toFixed(2)} USDT). Notional: ${notionalValue.toFixed(2)} USDT`
+            };
+          }
         }
 
-        // 检查是否余额充足（保留20%缓冲）
-        const marginUsageRatio = requiredMargin / availableMargin;
-        if (marginUsageRatio > 0.8) {
-          console.warn(`⚠️ High margin usage: ${(marginUsageRatio * 100).toFixed(2)}% of available balance`);
+        // 检查保证金使用率是否过高（对开仓操作）
+        if (!isClosing) {
+          const marginUsageRatio = (requiredMargin / availableMargin) * 100;
+          if (marginUsageRatio > 80) {
+            console.warn(`⚠️ High margin usage: ${marginUsageRatio.toFixed(2)}% of available balance`);
+          }
         }
 
         // 检查订单价值是否过小（币安有最小订单价值限制）
@@ -160,10 +191,12 @@ export class TradingExecutor {
         await this.binanceService.setMarginType(tradingPlan.symbol, 'ISOLATED');
         console.log(`✅ Margin type set to ISOLATED for ${tradingPlan.symbol}`);
       } catch (marginTypeError) {
-        // 如果已经是逐仓模式，API会返回错误，这是正常的，可以忽略
+        // 如果已经是逐仓模式或在Multi-Assets模式下，API会返回错误，这是正常的，可以忽略
         const errorMessage = marginTypeError instanceof Error ? marginTypeError.message : 'Unknown error';
         if (errorMessage.includes('No need to change margin type')) {
           console.log(`ℹ️ ${tradingPlan.symbol} is already in ISOLATED margin mode`);
+        } else if (errorMessage.includes('Multi-Assets mode') || errorMessage.includes('-4168')) {
+          console.log(`ℹ️ Account is in Multi-Assets mode, using default margin type`);
         } else {
           console.warn(`⚠️ Failed to set margin type: ${errorMessage}`);
         }
@@ -390,6 +423,15 @@ export class TradingExecutor {
     } catch (error) {
       console.error(`❌ Failed to cancel all orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return false;
+    }
+  }
+
+  /**
+   * 清理资源，关闭所有连接
+   */
+  destroy(): void {
+    if (this.binanceService) {
+      this.binanceService.destroy();
     }
   }
 }

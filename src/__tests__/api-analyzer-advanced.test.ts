@@ -20,6 +20,10 @@ describe('ApiAnalyzer - Comprehensive Unit Tests', () => {
     // Restore console methods
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
+    // Clean up resources
+    if (analyzer) {
+      analyzer.destroy();
+    }
     jest.clearAllMocks();
   });
 
@@ -36,6 +40,7 @@ describe('ApiAnalyzer - Comprehensive Unit Tests', () => {
     it('should create an instance with custom base URL', () => {
       const customAnalyzer = new ApiAnalyzer('https://custom.api.com');
       expect(customAnalyzer).toBeInstanceOf(ApiAnalyzer);
+      customAnalyzer.destroy();
     });
 
     it('should return ConfigManager instance', () => {

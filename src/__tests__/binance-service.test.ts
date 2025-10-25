@@ -21,15 +21,23 @@ describe("BinanceService", () => {
     service = new BinanceService("test-api-key", "test-api-secret");
   });
 
+  afterEach(() => {
+    if (service) {
+      service.destroy();
+    }
+  });
+
   describe("constructor", () => {
     it("should create BinanceService instance with API credentials", () => {
-      const service = new BinanceService("test-api-key", "test-api-secret");
-      expect(service).toBeInstanceOf(BinanceService);
+      const testService = new BinanceService("test-api-key", "test-api-secret");
+      expect(testService).toBeInstanceOf(BinanceService);
+      testService.destroy();
     });
 
     it("should create BinanceService instance with empty credentials", () => {
-      const service = new BinanceService("", "");
-      expect(service).toBeInstanceOf(BinanceService);
+      const testService = new BinanceService("", "");
+      expect(testService).toBeInstanceOf(BinanceService);
+      testService.destroy();
     });
 
     it("should handle null/undefined credentials", () => {
@@ -37,6 +45,8 @@ describe("BinanceService", () => {
       const service2 = new BinanceService(undefined as any, undefined as any);
       expect(service1).toBeInstanceOf(BinanceService);
       expect(service2).toBeInstanceOf(BinanceService);
+      service1.destroy();
+      service2.destroy();
     });
   });
 

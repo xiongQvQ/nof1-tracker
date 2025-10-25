@@ -47,6 +47,8 @@ describe("ApiAnalyzer HTTP Requests", () => {
 
     expect(mockApiClient.getAccountTotals).toHaveBeenCalled();
     expect(Array.isArray(result)).toBe(true);
+    
+    analyzer.destroy();
   });
 
   it("should parse API response into TradingPlan objects", async () => {
@@ -121,5 +123,7 @@ describe("ApiAnalyzer HTTP Requests", () => {
       leverage: 20
     });
     expect(result[1].timestamp).toBeGreaterThan(0);
+    
+    analyzer.destroy();
   });
 });
