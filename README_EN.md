@@ -40,6 +40,12 @@ npm start -- profit
 - **📈 Profit Analysis**: Accurate profit analysis based on real trading data (including fee statistics)
 - **🛡️ Risk Control**: Support `--risk-only` mode for observation without execution
 
+## 📊 Live Trading Dashboard
+
+**deepseek-chat-v3.1 Agent Live Trading Panel**: [https://nof1-tracker-dashboard.onrender.com](https://nof1-tracker-dashboard.onrender.com)
+
+Real-time view of deepseek-chat-v3.1 AI Agent's trading performance, positions, and profit/loss statistics.
+
 ## 🤖 Supported AI Agents
 
 | Agent Name |

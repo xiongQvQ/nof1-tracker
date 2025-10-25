@@ -40,6 +40,12 @@ npm start -- profit
 - **📈 盈利统计**: 精确的盈利分析，基于真实交易数据计算（含手续费统计）
 - **🛡️ 风险控制**: 支持`--risk-only`模式，只观察不执行交易
 
+## 📊 实盘跟踪
+
+**deepseek-chat-v3.1 Agent 实盘跟踪面板**: [https://nof1-tracker-dashboard.onrender.com](https://nof1-tracker-dashboard.onrender.com)
+
+实时查看 deepseek-chat-v3.1 AI Agent 的交易表现、持仓情况和盈亏统计。
+
 ## 🤖 支持的AI Agent
 
 | Agent名称 |
