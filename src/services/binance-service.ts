@@ -85,6 +85,23 @@ export interface PositionResponse {
   updateTime: number;
 }
 
+export interface UserTrade {
+  symbol: string;
+  id: number;
+  orderId: number;
+  side: 'BUY' | 'SELL';
+  qty: string;
+  price: string;
+  quoteQty: string;
+  commission: string;
+  commissionAsset: string;
+  realizedPnl: string;
+  time: number;
+  positionSide: string;
+  buyer: boolean;
+  maker: boolean;
+}
+
 export class BinanceService {
   private apiKey: string;
   private apiSecret: string;
@@ -557,6 +574,78 @@ export class BinanceService {
     if (symbol) params.symbol = this.convertSymbol(symbol);
 
     return await this.makePublicRequest('/fapi/v1/ticker/24hr', params);
+  }
+
+  /**
+   * 获取用户成交记录
+   * @param symbol 交易对 (可选)
+   * @param startTime 开始时间 (可选, Unix时间戳)
+   * @param endTime 结束时间 (可选, Unix时间戳)
+   * @param fromId 从哪个ID开始查询 (可选, 用于分页)
+   * @param limit 限制返回数量 (默认500, 最大1000)
+   */
+  async getUserTrades(
+    symbol?: string,
+    startTime?: number,
+    endTime?: number,
+    fromId?: number,
+    limit: number = 500
+  ): Promise<UserTrade[]> {
+    const params: Record<string, any> = { limit };
+
+    if (symbol) params.symbol = this.convertSymbol(symbol);
+    if (startTime) params.startTime = startTime;
+    if (endTime) params.endTime = endTime;
+    if (fromId) params.fromId = fromId;
+
+    return await this.makeSignedRequest<UserTrade[]>('/fapi/v1/userTrades', 'GET', params);
+  }
+
+  /**
+   * 获取指定时间范围内的所有用户成交记录
+   * 注意：币安API限制只能查询最近6个月内的交易记录，且单次查询时间范围不能超过7天
+   * @param startTime 开始时间
+   * @param endTime 结束时间
+   * @param symbol 交易对 (可选)
+   */
+  async getAllUserTradesInRange(
+    startTime: number,
+    endTime: number,
+    symbol?: string
+  ): Promise<UserTrade[]> {
+    const allTrades: UserTrade[] = [];
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+
+    // 如果时间范围超过7天，分批获取
+    let currentStartTime = startTime;
+    while (currentStartTime < endTime) {
+      let currentEndTime = Math.min(currentStartTime + sevenDaysInMs, endTime);
+
+      let fromId: number | undefined;
+      const maxLimit = 1000; // 单次请求最大数量
+
+      while (true) {
+        const trades = await this.getUserTrades(symbol, currentStartTime, currentEndTime, fromId, maxLimit);
+
+        if (trades.length === 0) break;
+
+        allTrades.push(...trades);
+
+        // 如果返回的记录数少于限制，说明已经获取完所有数据
+        if (trades.length < maxLimit) break;
+
+        // 使用最后一条记录的ID作为下一次查询的起始点
+        fromId = trades[trades.length - 1].id;
+      }
+
+      // 移动到下一个7天时间段
+      currentStartTime = currentEndTime;
+    }
+
+    // 按时间排序
+    allTrades.sort((a, b) => a.time - b.time);
+
+    return allTrades;
   }
 
   convertToBinanceOrder(tradingPlan: any): BinanceOrder {

@@ -5,7 +5,9 @@ import * as dotenv from 'dotenv';
 import {
   handleAgentsCommand,
   handleFollowCommand,
-  handleStatusCommand
+  handleStatusCommand,
+  handleProfitCommand,
+  ProfitCommandOptions
 } from './commands';
 import { handleError, getVersion } from './utils/command-helpers';
 
@@ -61,6 +63,23 @@ program
   .description('Check system status and configuration')
   .action(() => {
     handleStatusCommand();
+  });
+
+// Profit command
+program
+  .command('profit')
+  .description('Analyze profit/loss statistics for futures trades')
+  .option('-s, --since <time>', 'time filter: "7d" (last 7 days), "2024-01-01" (since date), or timestamp. If not specified, uses order history start time')
+  .option('-p, --pair <symbol>', 'specific trading pair (e.g., BTCUSDT)')
+  .option('--group-by <type>', 'group results by symbol or all', 'all')
+  .option('--format <type>', 'output format: table or json', 'table')
+  .option('--refresh', 'force refresh cache and fetch fresh data')
+  .action(async (options: ProfitCommandOptions) => {
+    try {
+      await handleProfitCommand(options);
+    } catch (error) {
+      handleError(error, 'Profit analysis failed');
+    }
   });
 
 // ============================================================================

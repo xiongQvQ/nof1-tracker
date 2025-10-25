@@ -16,6 +16,7 @@ export interface ProcessedOrder {
 export interface OrderHistoryData {
   processedOrders: ProcessedOrder[];
   lastUpdated: number;
+  createdAt?: number; // 跟单开始时间
 }
 
 export class OrderHistoryManager {
@@ -36,6 +37,31 @@ export class OrderHistoryManager {
     try {
       if (fs.existsSync(this.historyFilePath)) {
         const data = fs.readJsonSync(this.historyFilePath);
+
+        // 如果没有createdAt字段，尝试添加
+        if (!data.createdAt && data.processedOrders.length > 0) {
+          // 使用第一个订单的时间作为创建时间
+          const firstOrderTimestamp = Math.min(...data.processedOrders.map((order: ProcessedOrder) => order.timestamp));
+          data.createdAt = firstOrderTimestamp;
+
+          // 保存更新后的数据
+          this.saveOrderHistoryData(data);
+          logInfo(`📅 Added createdAt field based on earliest order: ${new Date(data.createdAt).toISOString()}`);
+        } else if (!data.createdAt) {
+          // 如果没有任何订单记录，使用文件创建时间
+          try {
+            const stats = fs.statSync(this.historyFilePath);
+            data.createdAt = stats.birthtimeMs || stats.mtimeMs;
+            this.saveOrderHistoryData(data);
+            logInfo(`📅 Added createdAt field based on file creation time: ${new Date(data.createdAt).toISOString()}`);
+          } catch (error) {
+            // 如果获取文件时间失败，使用当前时间
+            data.createdAt = Date.now();
+            this.saveOrderHistoryData(data);
+            logInfo(`📅 Added createdAt field using current time: ${new Date(data.createdAt).toISOString()}`);
+          }
+        }
+
         logDebug(`📚 Loaded ${data.processedOrders.length} processed orders from history`);
         return data;
       }
@@ -46,7 +72,8 @@ export class OrderHistoryManager {
     // 返回默认空历史
     const emptyHistory: OrderHistoryData = {
       processedOrders: [],
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
+      createdAt: Date.now()
     };
     logDebug(`📚 Starting with empty order history`);
     return emptyHistory;
@@ -62,6 +89,18 @@ export class OrderHistoryManager {
       logDebug(`💾 Saved ${this.historyData.processedOrders.length} orders to history`);
     } catch (error) {
       logWarn(`❌ Failed to save order history: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * 保存指定的历史数据（用于更新createdAt等字段）
+   */
+  private saveOrderHistoryData(data: OrderHistoryData): void {
+    try {
+      fs.writeJsonSync(this.historyFilePath, data, { spaces: 2 });
+      logDebug(`💾 Saved updated order history data`);
+    } catch (error) {
+      logWarn(`❌ Failed to save order history data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -189,6 +228,33 @@ export class OrderHistoryManager {
   }
 
   /**
+   * 获取跟单开始时间
+   */
+  getCreatedAt(): number {
+    // 重新加载以确保数据是最新的
+    this.reloadHistory();
+
+    if (this.historyData.createdAt) {
+      return this.historyData.createdAt;
+    }
+
+    // 如果仍然没有createdAt（理论上不应该发生），提供备用逻辑
+    if (this.historyData.processedOrders.length > 0) {
+      // 使用最早订单的时间
+      const earliestOrder = this.historyData.processedOrders.reduce((earliest, order) =>
+        order.timestamp < earliest.timestamp ? order : earliest
+      );
+      logWarn(`⚠️ Using earliest order timestamp as fallback: ${new Date(earliestOrder.timestamp).toISOString()}`);
+      return earliestOrder.timestamp;
+    }
+
+    // 最后的备用方案：使用当前时间减去1天（假设至少有一天的跟单历史）
+    const fallbackTime = Date.now() - (24 * 60 * 60 * 1000);
+    logWarn(`⚠️ Using fallback time (1 day ago): ${new Date(fallbackTime).toISOString()}`);
+    return fallbackTime;
+  }
+
+  /**
    * 打印统计信息
    */
   printStats(): void {
@@ -198,6 +264,7 @@ export class OrderHistoryManager {
     logInfo(`==========================`);
     logInfo(`Total Orders: ${stats.totalOrders}`);
     logInfo(`Last Updated: ${new Date(stats.lastUpdated).toISOString()}`);
+    logInfo(`Created At: ${new Date(this.getCreatedAt()).toISOString()}`);
 
     if (Object.keys(stats.ordersByAgent).length > 0) {
       logInfo(`\nOrders by Agent:`);
