@@ -4,6 +4,8 @@ import { RiskManager } from '../services/risk-manager';
 import { OrderHistoryManager } from '../services/order-history-manager';
 import { TradingPlan } from '../types/trading';
 import { CommandOptions, ServiceContainer } from '../types/command';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * 初始化服务容器
@@ -197,4 +199,18 @@ export async function executeTradeWithHistory(
 export function handleError(error: unknown, context: string): never {
   console.error(`❌ ${context}:`, error instanceof Error ? error.message : error);
   process.exit(1);
+}
+
+/**
+ * 从 package.json 读取版本号
+ */
+export function getVersion(): string {
+  try {
+    const packageJsonPath = path.join(__dirname, '../../package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    return packageJson.version;
+  } catch (error) {
+    console.warn('Warning: Could not read version from package.json, defaulting to 1.0.0');
+    return '1.0.0';
+  }
 }

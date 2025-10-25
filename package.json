@@ -1,6 +1,6 @@
 {
-  "name": "nof1-trading-cli",
-  "version": "1.0.0",
+  "name": "nof1-tracker",
+  "version": "1.0.2",
   "description": "CLI tool for automated contract trading based on nof1 account totals API",
   "main": "dist/index.js",
   "bin": {

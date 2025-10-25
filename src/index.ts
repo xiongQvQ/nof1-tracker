@@ -7,7 +7,7 @@ import {
   handleFollowCommand,
   handleStatusCommand
 } from './commands';
-import { handleError } from './utils/command-helpers';
+import { handleError, getVersion } from './utils/command-helpers';
 
 // Load environment variables
 dotenv.config();
@@ -21,7 +21,7 @@ const program = new Command();
 program
   .name('nof1-trade')
   .description('CLI tool for automated contract trading based on nof1 AI agents')
-  .version('1.0.0');
+  .version(getVersion());
 
 // ============================================================================
 // Command Registration

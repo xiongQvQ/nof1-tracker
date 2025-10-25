@@ -854,7 +854,7 @@ npm start -- follow gpt-5 --interval 30
 
 **最后更新**: 2025-10-24
 **文档版本**: v2.0.0
-**系统版本**: nof1-trading-cli v2.0.0
+**系统版本**: nof1-tracker v2.0.0
 
 ---
 
