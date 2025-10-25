@@ -368,6 +368,10 @@ npm run lint
 - **[Detailed Copy Trading Strategy](./docs/follow-strategy.md)** - Complete copy trading strategy and risk assessment
 - **[Quick Reference](./docs/quick-reference.md)** - Quick command reference
 
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=terryso/nof1-tracker&type=date&legend=top-left)](https://www.star-history.com/#terryso/nof1-tracker&type=date&legend=top-left)
+
 ## 📄 License
 
 MIT License - See [LICENSE](LICENSE) file for details

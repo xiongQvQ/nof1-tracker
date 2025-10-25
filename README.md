@@ -369,6 +369,10 @@ npm run lint
 - **[详细跟单策略文档](./docs/follow-strategy.md)** - 完整的跟单策略和风险评估
 - **[快速参考手册](./docs/quick-reference.md)** - 常用命令快速查询
 
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=terryso/nof1-tracker&type=date&legend=top-left)](https://www.star-history.com/#terryso/nof1-tracker&type=date&legend=top-left)
+
 ## 📄 许可证
 
 MIT License - 查看 [LICENSE](LICENSE) 文件了解详情
