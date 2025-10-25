@@ -8,12 +8,14 @@ import { FuturesCapitalManager } from './futures-capital-manager';
 import { TradingExecutor } from './trading-executor';
 import {
   LOGGING_CONFIG,
-  TIME_CONFIG
+  TIME_CONFIG,
+  LogLevel
 } from '../config/constants';
 import {
   handleErrors,
   safeExecute
 } from '../utils/errors';
+import { logInfo, logDebug, logVerbose, logWarn, logError } from '../utils/logger';
 
 /**
  * 仓位变化检测结果
@@ -49,7 +51,7 @@ export class FollowService {
     const processedOrders = this.orderHistoryManager.getProcessedOrdersByAgent(agentId);
     
     if (!processedOrders || processedOrders.length === 0) {
-      console.log(`📚 No order history found for agent ${agentId}, treating all positions as new`);
+      logDebug(`📚 No order history found for agent ${agentId}, treating all positions as new`);
       return [];
     }
 
@@ -85,7 +87,7 @@ export class FollowService {
     }
 
     const rebuiltPositions = Array.from(lastPositionsMap.values());
-    console.log(`📚 Rebuilt ${rebuiltPositions.length} positions from order history for agent ${agentId}`);
+    logDebug(`📚 Rebuilt ${rebuiltPositions.length} positions from order history for agent ${agentId}`);
     
     return rebuiltPositions;
   }
@@ -99,7 +101,7 @@ export class FollowService {
     currentPositions: Position[],
     totalMargin?: number
   ): Promise<FollowPlan[]> {
-    console.log(`${LOGGING_CONFIG.EMOJIS.ROBOT} Following agent: ${agentId}`);
+    logInfo(`${LOGGING_CONFIG.EMOJIS.ROBOT} Following agent: ${agentId}`);
 
     // 0. 重新加载订单历史,确保使用最新数据(支持手动修改文件)
     this.orderHistoryManager.reloadHistory();
@@ -135,7 +137,7 @@ export class FollowService {
     // lastPositions 应该在订单成功执行后才更新（在 PositionManager 中）
     // 这样才能确保只有真正执行的订单才会被记录
 
-    console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Generated ${followPlans.length} follow plan(s) for agent ${agentId}`);
+    logInfo(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Generated ${followPlans.length} follow plan(s) for agent ${agentId}`);
     return followPlans;
   }
 
@@ -167,7 +169,7 @@ export class FollowService {
       } else {
         // 检查 entry_oid 变化（先平仓再开仓）
         if (previousPosition.entry_oid !== currentPosition.entry_oid && currentPosition.quantity !== 0) {
-          console.log(`🔍 Detected OID change for ${symbol}: ${previousPosition.entry_oid} → ${currentPosition.entry_oid}`);
+          logInfo(`🔍 Detected OID change for ${symbol}: ${previousPosition.entry_oid} → ${currentPosition.entry_oid}`);
           changes.push({
             symbol,
             type: 'entry_changed',
@@ -184,7 +186,7 @@ export class FollowService {
           });
         } else {
           // 调试: 显示为什么没有检测到变化
-          console.log(`🔍 ${symbol}: Previous OID=${previousPosition.entry_oid}, Current OID=${currentPosition.entry_oid}, Qty=${currentPosition.quantity}`);
+          logVerbose(`🔍 ${symbol}: Previous OID=${previousPosition.entry_oid}, Current OID=${currentPosition.entry_oid}, Qty=${currentPosition.quantity}`);
         }
       }
     }
@@ -235,7 +237,7 @@ export class FollowService {
 
     // 检查新订单是否已处理（去重）
     if (this.orderHistoryManager.isOrderProcessed(currentPosition.entry_oid, currentPosition.symbol)) {
-      console.log(`${LOGGING_CONFIG.EMOJIS.INFO} SKIPPED: ${currentPosition.symbol} new entry (OID: ${currentPosition.entry_oid}) already processed`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} SKIPPED: ${currentPosition.symbol} new entry (OID: ${currentPosition.entry_oid}) already processed`);
       return;
     }
 
@@ -255,9 +257,9 @@ export class FollowService {
       
       if (existingPosition) {
         const positionAmt = parseFloat(existingPosition.positionAmt);
-        console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Found existing position on Binance: ${existingPosition.symbol} ${positionAmt > 0 ? 'LONG' : 'SHORT'} ${Math.abs(positionAmt)}`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Found existing position on Binance: ${existingPosition.symbol} ${positionAmt > 0 ? 'LONG' : 'SHORT'} ${Math.abs(positionAmt)}`);
       } else {
-        console.log(`${LOGGING_CONFIG.EMOJIS.INFO} No existing position found on Binance for ${targetSymbol}`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} No existing position found on Binance for ${targetSymbol}`);
       }
     } catch (error) {
       console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to check existing positions: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -270,9 +272,9 @@ export class FollowService {
       try {
         const accountInfo = await this.tradingExecutor.getAccountInfo();
         balanceBeforeClose = parseFloat(accountInfo.availableBalance);
-        console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance before closing: $${balanceBeforeClose.toFixed(2)} USDT`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Balance before closing: $${balanceBeforeClose.toFixed(2)} USDT`);
       } catch (error) {
-        console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance before close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance before close: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
 
       const closeReason = `Entry order changed (old: ${previousPosition.entry_oid} → new: ${currentPosition.entry_oid}) - closing old position`;
@@ -289,24 +291,24 @@ export class FollowService {
             const accountInfo = await this.tradingExecutor.getAccountInfo();
             const balanceAfterClose = parseFloat(accountInfo.availableBalance);
             releasedMargin = balanceAfterClose - balanceBeforeClose;
-            console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance after closing: $${balanceAfterClose.toFixed(2)} USDT`);
-            console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Released margin from closing: $${releasedMargin.toFixed(2)} USDT (${releasedMargin >= 0 ? 'Profit' : 'Loss'})`);
+            logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Balance after closing: $${balanceAfterClose.toFixed(2)} USDT`);
+            logInfo(`${LOGGING_CONFIG.EMOJIS.MONEY} Released margin from closing: $${releasedMargin.toFixed(2)} USDT (${releasedMargin >= 0 ? 'Profit' : 'Loss'})`);
             
             // 如果释放的资金为负数(亏损)或太小,则不使用
             if (releasedMargin <= 0) {
-              console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Position closed with loss, insufficient margin released. Will use normal capital allocation.`);
+              logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Position closed with loss, insufficient margin released. Will use normal capital allocation.`);
               releasedMargin = undefined;
             }
           } catch (error) {
-            console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance after close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance after close: ${error instanceof Error ? error.message : 'Unknown error'}`);
           }
         }
       } else {
-        console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to close old position for ${currentPosition.symbol}, skipping new position opening`);
+        logError(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to close old position for ${currentPosition.symbol}, skipping new position opening`);
         return;
       }
     } else {
-      console.log(`${LOGGING_CONFIG.EMOJIS.INFO} No actual position to close, will use normal capital allocation for new position`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} No actual position to close, will use normal capital allocation for new position`);
     }
 
     // 添加价格容忍度检查
@@ -317,7 +319,7 @@ export class FollowService {
     );
 
     if (!priceTolerance.shouldExecute) {
-      console.log(`${LOGGING_CONFIG.EMOJIS.WARNING} SKIPPED: ${currentPosition.symbol} - Price not acceptable: ${priceTolerance.reason}`);
+      logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} SKIPPED: ${currentPosition.symbol} - Price not acceptable: ${priceTolerance.reason}`);
       return;
     }
 
@@ -343,11 +345,11 @@ export class FollowService {
     plans.push(followPlan);
     
     if (releasedMargin && releasedMargin > 0) {
-      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} ENTRY CHANGED (with released margin $${releasedMargin.toFixed(2)}): ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+      logInfo(`${LOGGING_CONFIG.EMOJIS.TREND_UP} ENTRY CHANGED (with released margin $${releasedMargin.toFixed(2)}): ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
     } else {
-      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} ENTRY CHANGED: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+      logInfo(`${LOGGING_CONFIG.EMOJIS.TREND_UP} ENTRY CHANGED: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
     }
-    console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
+    logDebug(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
   }
 
   /**
@@ -363,7 +365,7 @@ export class FollowService {
 
     // 检查订单是否已处理（去重）
     if (this.orderHistoryManager.isOrderProcessed(currentPosition.entry_oid, currentPosition.symbol)) {
-      console.log(`${LOGGING_CONFIG.EMOJIS.INFO} SKIPPED: ${currentPosition.symbol} position (OID: ${currentPosition.entry_oid}) already processed`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} SKIPPED: ${currentPosition.symbol} position (OID: ${currentPosition.entry_oid}) already processed`);
       return;
     }
 
@@ -373,8 +375,8 @@ export class FollowService {
       const binancePositions = await this.positionManager['binanceService'].getPositions();
       const targetSymbol = this.positionManager['binanceService'].convertSymbol(currentPosition.symbol);
       
-      console.log(`${LOGGING_CONFIG.EMOJIS.SEARCH} Checking for existing positions on Binance for ${currentPosition.symbol} (converted: ${targetSymbol})...`);
-      console.log(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${binancePositions.length} total position(s) on Binance`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.SEARCH} Checking for existing positions on Binance for ${currentPosition.symbol} (converted: ${targetSymbol})...`);
+      logVerbose(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${binancePositions.length} total position(s) on Binance`);
       
       const existingPosition = binancePositions.find(
         p => p.symbol === targetSymbol && parseFloat(p.positionAmt) !== 0
@@ -382,24 +384,24 @@ export class FollowService {
 
       if (existingPosition) {
         const positionAmt = parseFloat(existingPosition.positionAmt);
-        console.log(`${LOGGING_CONFIG.EMOJIS.WARNING} Found existing position on Binance: ${existingPosition.symbol} ${positionAmt > 0 ? 'LONG' : 'SHORT'} ${Math.abs(positionAmt)}`);
-        console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Closing existing position before opening new entry (OID: ${currentPosition.entry_oid})...`);
+        logInfo(`${LOGGING_CONFIG.EMOJIS.WARNING} Found existing position on Binance: ${existingPosition.symbol} ${positionAmt > 0 ? 'LONG' : 'SHORT'} ${Math.abs(positionAmt)}`);
+        logInfo(`${LOGGING_CONFIG.EMOJIS.INFO} Closing existing position before opening new entry (OID: ${currentPosition.entry_oid})...`);
         
         // 获取平仓前余额
         let balanceBeforeClose: number | undefined;
         try {
           const accountInfo = await this.tradingExecutor.getAccountInfo();
           balanceBeforeClose = parseFloat(accountInfo.availableBalance);
-          console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance before closing: $${balanceBeforeClose.toFixed(2)} USDT`);
+          logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Balance before closing: $${balanceBeforeClose.toFixed(2)} USDT`);
         } catch (error) {
-          console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance before close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance before close: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
         
         const closeReason = `Closing existing position before opening new entry (OID: ${currentPosition.entry_oid})`;
         const closeResult = await this.positionManager.closePosition(currentPosition.symbol, closeReason);
         
         if (!closeResult.success) {
-          console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to close existing position for ${currentPosition.symbol}, skipping new position`);
+          logError(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to close existing position for ${currentPosition.symbol}, skipping new position`);
           return;
         }
         
@@ -411,22 +413,22 @@ export class FollowService {
             const accountInfo = await this.tradingExecutor.getAccountInfo();
             const balanceAfterClose = parseFloat(accountInfo.availableBalance);
             releasedMargin = balanceAfterClose - balanceBeforeClose;
-            console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Balance after closing: $${balanceAfterClose.toFixed(2)} USDT`);
-            console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Released margin from closing: $${releasedMargin.toFixed(2)} USDT (${releasedMargin >= 0 ? 'Profit' : 'Loss'})`);
+            logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Balance after closing: $${balanceAfterClose.toFixed(2)} USDT`);
+            logInfo(`${LOGGING_CONFIG.EMOJIS.MONEY} Released margin from closing: $${releasedMargin.toFixed(2)} USDT (${releasedMargin >= 0 ? 'Profit' : 'Loss'})`);
             
             if (releasedMargin <= 0) {
-              console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Position closed with loss, insufficient margin released. Will use available balance.`);
+              logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Position closed with loss, insufficient margin released. Will use available balance.`);
               releasedMargin = undefined;
             }
           } catch (error) {
-            console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance after close: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get balance after close: ${error instanceof Error ? error.message : 'Unknown error'}`);
           }
         }
       } else {
-        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No existing position found on Binance for ${targetSymbol}, proceeding with new position`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No existing position found on Binance for ${targetSymbol}, proceeding with new position`);
       }
     } catch (error) {
-      console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to check existing positions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to check existing positions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     // 添加价格容忍度检查
@@ -458,11 +460,11 @@ export class FollowService {
     plans.push(followPlan);
     
     if (releasedMargin && releasedMargin > 0) {
-      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION (with released margin $${releasedMargin.toFixed(2)}): ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+      logInfo(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION (with released margin $${releasedMargin.toFixed(2)}): ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
     } else {
-      console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
+      logInfo(`${LOGGING_CONFIG.EMOJIS.TREND_UP} NEW POSITION: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.entry_price} (OID: ${currentPosition.entry_oid})`);
     }
-    console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
+    logDebug(`${LOGGING_CONFIG.EMOJIS.MONEY} Price Check: Entry $${currentPosition.entry_price} vs Current $${currentPosition.current_price} - ${priceTolerance.reason}`);
   }
 
   /**
@@ -490,7 +492,7 @@ export class FollowService {
     };
 
     plans.push(followPlan);
-    console.log(`${LOGGING_CONFIG.EMOJIS.TREND_DOWN} POSITION CLOSED: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.current_price}`);
+    logInfo(`${LOGGING_CONFIG.EMOJIS.TREND_DOWN} POSITION CLOSED: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.current_price}`);
   }
 
   /**
@@ -517,7 +519,7 @@ export class FollowService {
           timestamp: Date.now()
         };
         plans.push(followPlan);
-        console.log(`${LOGGING_CONFIG.EMOJIS.TARGET} EXIT SIGNAL: ${position.symbol} - ${followPlan.reason}`);
+        logInfo(`${LOGGING_CONFIG.EMOJIS.TARGET} EXIT SIGNAL: ${position.symbol} - ${followPlan.reason}`);
       }
     }
 
@@ -557,9 +559,9 @@ export class FollowService {
     try {
       const accountInfo = await this.tradingExecutor.getAccountInfo();
       availableBalance = parseFloat(accountInfo.availableBalance);
-      console.log(`${LOGGING_CONFIG.EMOJIS.INFO} Available account balance: ${availableBalance.toFixed(2)} USDT`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Available account balance: ${availableBalance.toFixed(2)} USDT`);
     } catch (balanceError) {
-      console.warn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get account balance: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`);
+      logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get account balance: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`);
     }
 
     // 执行资金分配
@@ -576,22 +578,22 @@ export class FollowService {
    * 显示资金分配信息
    */
   private displayCapitalAllocation(allocationResult: CapitalAllocationResult, agentId: string): void {
-    console.log(`\n${LOGGING_CONFIG.EMOJIS.MONEY} Capital Allocation for ${agentId}:`);
-    console.log('==========================================');
-    console.log(`${LOGGING_CONFIG.EMOJIS.MONEY} Total Margin: $${allocationResult.totalAllocatedMargin.toFixed(2)}`);
-    console.log(`${LOGGING_CONFIG.EMOJIS.TREND_UP} Total Notional Value: $${allocationResult.totalNotionalValue.toFixed(2)}`);
-    console.log('');
+    logDebug(`\n${LOGGING_CONFIG.EMOJIS.MONEY} Capital Allocation for ${agentId}:`);
+    logDebug('==========================================');
+    logDebug(`${LOGGING_CONFIG.EMOJIS.MONEY} Total Margin: $${allocationResult.totalAllocatedMargin.toFixed(2)}`);
+    logDebug(`${LOGGING_CONFIG.EMOJIS.TREND_UP} Total Notional Value: $${allocationResult.totalNotionalValue.toFixed(2)}`);
+    logDebug('');
 
     for (const allocation of allocationResult.allocations) {
-      console.log(`${allocation.symbol} - ${allocation.leverage}x leverage`);
-      console.log(`   ${LOGGING_CONFIG.EMOJIS.CHART} Original Margin: $${allocation.originalMargin.toFixed(2)} (${this.capitalManager.formatPercentage(allocation.allocationRatio)})`);
-      console.log(`   ${LOGGING_CONFIG.EMOJIS.MONEY} Allocated Margin: $${allocation.allocatedMargin.toFixed(2)}`);
-      console.log(`   ${LOGGING_CONFIG.EMOJIS.TREND_UP} Notional Value: $${allocation.notionalValue.toFixed(2)}`);
-      console.log(`   ${LOGGING_CONFIG.EMOJIS.INFO} Adjusted Quantity: ${allocation.adjustedQuantity.toFixed(4)}`);
-      console.log('');
+      logDebug(`${allocation.symbol} - ${allocation.leverage}x leverage`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.CHART} Original Margin: $${allocation.originalMargin.toFixed(2)} (${this.capitalManager.formatPercentage(allocation.allocationRatio)})`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.MONEY} Allocated Margin: $${allocation.allocatedMargin.toFixed(2)}`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.TREND_UP} Notional Value: $${allocation.notionalValue.toFixed(2)}`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.INFO} Adjusted Quantity: ${allocation.adjustedQuantity.toFixed(4)}`);
+      logDebug('');
     }
 
-    console.log('==========================================');
+    logDebug('==========================================');
   }
 
   /**
@@ -631,7 +633,7 @@ export class FollowService {
    * 如需清除，请手动编辑该文件或使用 OrderHistoryManager
    */
   clearLastPositions(agentId: string): void {
-    console.log(`⚠️ clearLastPositions is deprecated. History is now in order-history.json`);
+    logWarn(`⚠️ clearLastPositions is deprecated. History is now in order-history.json`);
   }
 
   /**
@@ -640,6 +642,6 @@ export class FollowService {
    * 如需清除，请手动删除该文件
    */
   clearAllLastPositions(): void {
-    console.log(`⚠️ clearAllLastPositions is deprecated. History is now in order-history.json`);
+    logWarn(`⚠️ clearAllLastPositions is deprecated. History is now in order-history.json`);
   }
 }

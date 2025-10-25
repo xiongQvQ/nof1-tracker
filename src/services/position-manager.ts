@@ -6,7 +6,8 @@ import { TradingPlan } from '../types/trading';
 import {
   LOGGING_CONFIG,
   TIME_CONFIG,
-  TRADING_CONFIG
+  TRADING_CONFIG,
+  LogLevel
 } from '../config/constants';
 import {
   PositionError,
@@ -14,6 +15,7 @@ import {
   handleErrors,
   safeExecute
 } from '../utils/errors';
+import { logInfo, logDebug, logVerbose, logWarn, logError } from '../utils/logger';
 
 /**
  * 仓位操作结果
@@ -52,7 +54,7 @@ export class PositionManager {
   @handleErrors(PositionError, 'PositionManager.closePosition')
   async closePosition(symbol: string, reason: string): Promise<PositionOperationResult> {
     try {
-      console.log(`${LOGGING_CONFIG.EMOJIS.CLOSING} CLOSING ALL POSITIONS: ${symbol} - ${reason}`);
+      logInfo(`${LOGGING_CONFIG.EMOJIS.CLOSING} CLOSING ALL POSITIONS: ${symbol} - ${reason}`);
 
       // 1. 获取该币种的所有仓位和挂单
       const [positions, openOrders] = await Promise.all([
@@ -62,7 +64,7 @@ export class PositionManager {
 
       const symbolPositions = positions.filter(p => p.symbol === this.binanceService.convertSymbol(symbol));
 
-      console.log(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${symbolPositions.length} position(s) and ${openOrders.length} open order(s) for ${symbol}`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${symbolPositions.length} position(s) and ${openOrders.length} open order(s) for ${symbol}`);
 
       // 2. 如果有挂单，先取消所有挂单
       if (openOrders.length > 0) {
@@ -86,7 +88,7 @@ export class PositionManager {
         const verificationSuccess = await this.verifyPositionsClosed(symbol);
 
         if (verificationSuccess) {
-          console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} All positions successfully closed for ${symbol} (${successCount}/${symbolPositions.length})`);
+          logInfo(`${LOGGING_CONFIG.EMOJIS.SUCCESS} All positions successfully closed for ${symbol} (${successCount}/${symbolPositions.length})`);
           return {
             success: true,
             symbol,
@@ -101,7 +103,7 @@ export class PositionManager {
           };
         }
       } else {
-        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No positions to close for ${symbol}`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No positions to close for ${symbol}`);
         return {
           success: true,
           symbol,
@@ -419,13 +421,13 @@ export class PositionManager {
     errors: string[];
   }> {
     try {
-      console.log(`${LOGGING_CONFIG.EMOJIS.SEARCH} Checking for orphaned orders...`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.SEARCH} Checking for orphaned orders...`);
 
       // 1. 获取所有开放订单
       const allOpenOrders = await this.binanceService.getOpenOrders();
       
       if (allOpenOrders.length === 0) {
-        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No open orders found`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No open orders found`);
         return {
           success: true,
           cancelledOrders: 0,
@@ -433,7 +435,7 @@ export class PositionManager {
         };
       }
 
-      console.log(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${allOpenOrders.length} open order(s)`);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.DATA} Found ${allOpenOrders.length} open order(s)`);
 
       // 2. 获取所有仓位(包括零仓位)
       const allPositions = await this.binanceService.getAllPositions();
@@ -463,7 +465,7 @@ export class PositionManager {
       });
 
       if (orphanedOrders.length === 0) {
-        console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No orphaned orders found`);
+        logDebug(`${LOGGING_CONFIG.EMOJIS.SUCCESS} No orphaned orders found`);
         return {
           success: true,
           cancelledOrders: 0,
@@ -471,7 +473,7 @@ export class PositionManager {
         };
       }
 
-      console.log(`${LOGGING_CONFIG.EMOJIS.WARNING} Found ${orphanedOrders.length} orphaned order(s)`);
+      logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Found ${orphanedOrders.length} orphaned order(s)`);
 
       // 4. 取消孤立的挂单
       const errors: string[] = [];
@@ -479,23 +481,23 @@ export class PositionManager {
 
       for (const order of orphanedOrders) {
         try {
-          console.log(`${LOGGING_CONFIG.EMOJIS.ERROR} Cancelling orphaned ${order.type} order: ${order.symbol} (Order ID: ${order.orderId})`);
+          logInfo(`${LOGGING_CONFIG.EMOJIS.ERROR} Cancelling orphaned ${order.type} order: ${order.symbol} (Order ID: ${order.orderId})`);
           
           // 从symbol中提取基础币种名称
           const baseSymbol = order.symbol.replace('USDT', '');
           await this.binanceService.cancelOrder(baseSymbol, order.orderId);
           
           cancelledCount++;
-          console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Cancelled order ${order.orderId} for ${order.symbol}`);
+          logInfo(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Cancelled order ${order.orderId} for ${order.symbol}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           const errorMsg = `Failed to cancel order ${order.orderId} for ${order.symbol}: ${errorMessage}`;
-          console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} ${errorMsg}`);
+          logError(`${LOGGING_CONFIG.EMOJIS.ERROR} ${errorMsg}`);
           errors.push(errorMsg);
         }
       }
 
-      console.log(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Orphaned orders cleanup complete: ${cancelledCount}/${orphanedOrders.length} cancelled`);
+      logInfo(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Orphaned orders cleanup complete: ${cancelledCount}/${orphanedOrders.length} cancelled`);
 
       return {
         success: errors.length === 0,
@@ -505,7 +507,7 @@ export class PositionManager {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`${LOGGING_CONFIG.EMOJIS.ERROR} Error cleaning orphaned orders: ${errorMessage}`);
+      logError(`${LOGGING_CONFIG.EMOJIS.ERROR} Error cleaning orphaned orders: ${errorMessage}`);
       return {
         success: false,
         cancelledOrders: 0,

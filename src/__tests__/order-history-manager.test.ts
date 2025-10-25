@@ -3,6 +3,15 @@ import * as path from 'path';
 import * as os from 'os';
 import { OrderHistoryManager, ProcessedOrder, OrderHistoryData } from '../services/order-history-manager';
 
+// Mock logger functions
+jest.mock('../utils/logger', () => ({
+  logError: jest.fn(),
+  logWarn: jest.fn(),
+  logInfo: jest.fn(),
+  logDebug: jest.fn(),
+  logVerbose: jest.fn()
+}));
+
 // Mock console methods to reduce test noise
 const originalConsoleLog = console.log;
 const originalConsoleWarn = console.warn;
@@ -57,9 +66,11 @@ describe('OrderHistoryManager', () => {
 
   describe('loadOrderHistory', () => {
     it('should load empty history when file does not exist', () => {
+      const { logDebug } = require('../utils/logger');
+      
       const orders = manager.getProcessedOrders();
       expect(orders).toEqual([]);
-      expect(console.log).toHaveBeenCalledWith('📚 Starting with empty order history');
+      expect(logDebug).toHaveBeenCalledWith('📚 Starting with empty order history');
     });
 
     it('should load existing history from file', () => {
@@ -94,7 +105,7 @@ describe('OrderHistoryManager', () => {
         quantity: 0.001,
         price: 50000
       });
-      expect(console.log).toHaveBeenCalledWith('📚 Loaded 1 processed orders from history');
+      expect(require('../utils/logger').logDebug).toHaveBeenCalledWith('📚 Loaded 1 processed orders from history');
     });
 
     it('should handle corrupted JSON file gracefully', () => {
@@ -105,7 +116,7 @@ describe('OrderHistoryManager', () => {
       const orders = newManager.getProcessedOrders();
 
       expect(orders).toEqual([]);
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to load order history'));
+      expect(require('../utils/logger').logWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to load order history'));
     });
   });
 
@@ -120,7 +131,7 @@ describe('OrderHistoryManager', () => {
 
       const isProcessed = manager.isOrderProcessed(123456, 'BTC');
       expect(isProcessed).toBe(true);
-      expect(console.log).toHaveBeenCalledWith('🔄 Order already processed: BTC (OID: 123456)');
+      expect(require('../utils/logger').logDebug).toHaveBeenCalledWith('🔄 Order already processed: BTC (OID: 123456)');
     });
 
     it('should return false for same OID but different symbol', () => {
@@ -150,6 +161,8 @@ describe('OrderHistoryManager', () => {
 
   describe('saveProcessedOrder', () => {
     it('should save new order successfully', () => {
+      const { logInfo } = require('../utils/logger');
+      
       manager.saveProcessedOrder(123456, 'BTC', 'test-agent', 'BUY', 0.001, 50000, '789');
 
       const orders = manager.getProcessedOrders();
@@ -164,7 +177,7 @@ describe('OrderHistoryManager', () => {
         orderId: '789'
       });
       expect(typeof orders[0].timestamp).toBe('number');
-      expect(console.log).toHaveBeenCalledWith('✅ Saved processed order: BTC BUY 0.001 (OID: 123456)');
+      expect(logInfo).toHaveBeenCalledWith('✅ Saved processed order: BTC BUY 0.001 (OID: 123456)');
     });
 
     it('should save order without optional fields', () => {
@@ -190,7 +203,7 @@ describe('OrderHistoryManager', () => {
       const orders = manager.getProcessedOrders();
       expect(orders).toHaveLength(1);
       expect(orders[0].side).toBe('BUY'); // Original order preserved
-      expect(console.log).toHaveBeenCalledWith('⚠️ Order BTC (OID: 123456) already exists in history');
+      expect(require('../utils/logger').logDebug).toHaveBeenCalledWith('⚠️ Order BTC (OID: 123456) already exists in history');
     });
 
     it('should save multiple orders', () => {
@@ -324,6 +337,8 @@ describe('OrderHistoryManager', () => {
     });
 
     it('should remove orders older than specified days', () => {
+      const { logInfo } = require('../utils/logger');
+      
       const initialCount = testManager.getProcessedOrders().length;
       expect(initialCount).toBe(4);
 
@@ -332,7 +347,7 @@ describe('OrderHistoryManager', () => {
       const remainingOrders = testManager.getProcessedOrders();
       expect(remainingOrders).toHaveLength(3); // Orders from last 30 days: entryOid 2, 3, 4
       expect(remainingOrders.every(order => order.entryOid === 2 || order.entryOid === 3 || order.entryOid === 4)).toBe(true);
-      expect(console.log).toHaveBeenCalledWith('🧹 Cleaned up 1 old order records (kept last 30 days)');
+      expect(logInfo).toHaveBeenCalledWith('🧹 Cleaned up 1 old order records (kept last 30 days)');
     });
 
     it('should use default 30 days when not specified', () => {
@@ -429,32 +444,40 @@ describe('OrderHistoryManager', () => {
     });
 
     it('should print formatted statistics', () => {
+      const { logInfo } = require('../utils/logger');
+      
       printStatsManager.printStats();
 
-      expect(console.log).toHaveBeenCalledWith('\n📊 Order History Statistics:');
-      expect(console.log).toHaveBeenCalledWith('==========================');
-      expect(console.log).toHaveBeenCalledWith('Total Orders: 3');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Last Updated:'));
-      expect(console.log).toHaveBeenCalledWith('\nOrders by Agent:');
-      expect(console.log).toHaveBeenCalledWith('  agent1: 2');
-      expect(console.log).toHaveBeenCalledWith('  agent2: 1');
-      expect(console.log).toHaveBeenCalledWith('\nOrders by Symbol:');
-      expect(console.log).toHaveBeenCalledWith('  BTC: 2');
-      expect(console.log).toHaveBeenCalledWith('  ETH: 1');
+      expect(logInfo).toHaveBeenCalledWith('\n📊 Order History Statistics:');
+      expect(logInfo).toHaveBeenCalledWith('==========================');
+      expect(logInfo).toHaveBeenCalledWith('Total Orders: 3');
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Last Updated:'));
+      expect(logInfo).toHaveBeenCalledWith('\nOrders by Agent:');
+      expect(logInfo).toHaveBeenCalledWith('  agent1: 2');
+      expect(logInfo).toHaveBeenCalledWith('  agent2: 1');
+      expect(logInfo).toHaveBeenCalledWith('\nOrders by Symbol:');
+      expect(logInfo).toHaveBeenCalledWith('  BTC: 2');
+      expect(logInfo).toHaveBeenCalledWith('  ETH: 1');
     });
 
     it('should handle empty stats gracefully', () => {
+      const { logInfo } = require('../utils/logger');
+      
       // Create a separate empty temp directory for this test
       const emptyTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'order-history-empty-print-test-'));
       const emptyManager = new OrderHistoryManager(emptyTempDir);
+      
+      // Clear previous mock calls before testing
+      jest.clearAllMocks();
+      
       emptyManager.printStats();
 
-      expect(console.log).toHaveBeenCalledWith('\n📊 Order History Statistics:');
-      expect(console.log).toHaveBeenCalledWith('==========================');
-      expect(console.log).toHaveBeenCalledWith('Total Orders: 0');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Last Updated:'));
-      expect(console.log).not.toHaveBeenCalledWith('\nOrders by Agent:');
-      expect(console.log).not.toHaveBeenCalledWith('\nOrders by Symbol:');
+      expect(logInfo).toHaveBeenCalledWith('\n📊 Order History Statistics:');
+      expect(logInfo).toHaveBeenCalledWith('==========================');
+      expect(logInfo).toHaveBeenCalledWith('Total Orders: 0');
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Last Updated:'));
+      expect(logInfo).not.toHaveBeenCalledWith('\nOrders by Agent:');
+      expect(logInfo).not.toHaveBeenCalledWith('\nOrders by Symbol:');
 
       // Clean up
       fs.rmSync(emptyTempDir, { recursive: true, force: true });

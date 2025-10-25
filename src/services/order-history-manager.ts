@@ -1,5 +1,6 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { logInfo, logDebug, logWarn } from '../utils/logger';
 
 export interface ProcessedOrder {
   entryOid: number;
@@ -35,11 +36,11 @@ export class OrderHistoryManager {
     try {
       if (fs.existsSync(this.historyFilePath)) {
         const data = fs.readJsonSync(this.historyFilePath);
-        console.log(`📚 Loaded ${data.processedOrders.length} processed orders from history`);
+        logDebug(`📚 Loaded ${data.processedOrders.length} processed orders from history`);
         return data;
       }
     } catch (error) {
-      console.warn(`⚠️ Failed to load order history: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logWarn(`⚠️ Failed to load order history: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     // 返回默认空历史
@@ -47,7 +48,7 @@ export class OrderHistoryManager {
       processedOrders: [],
       lastUpdated: Date.now()
     };
-    console.log(`📚 Starting with empty order history`);
+    logDebug(`📚 Starting with empty order history`);
     return emptyHistory;
   }
 
@@ -58,9 +59,9 @@ export class OrderHistoryManager {
     try {
       this.historyData.lastUpdated = Date.now();
       fs.writeJsonSync(this.historyFilePath, this.historyData, { spaces: 2 });
-      console.log(`💾 Saved ${this.historyData.processedOrders.length} orders to history`);
+      logDebug(`💾 Saved ${this.historyData.processedOrders.length} orders to history`);
     } catch (error) {
-      console.error(`❌ Failed to save order history: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logWarn(`❌ Failed to save order history: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -80,7 +81,7 @@ export class OrderHistoryManager {
     );
 
     if (isProcessed) {
-      console.log(`🔄 Order already processed: ${symbol} (OID: ${entryOid})`);
+      logDebug(`🔄 Order already processed: ${symbol} (OID: ${entryOid})`);
     }
 
     return isProcessed;
@@ -100,7 +101,7 @@ export class OrderHistoryManager {
   ): void {
     // 检查是否已经存在
     if (this.isOrderProcessed(entryOid, symbol)) {
-      console.log(`⚠️ Order ${symbol} (OID: ${entryOid}) already exists in history`);
+      logDebug(`⚠️ Order ${symbol} (OID: ${entryOid}) already exists in history`);
       return;
     }
 
@@ -118,7 +119,7 @@ export class OrderHistoryManager {
     this.historyData.processedOrders.push(processedOrder);
     this.saveOrderHistory();
 
-    console.log(`✅ Saved processed order: ${symbol} ${side} ${quantity} (OID: ${entryOid})`);
+    logInfo(`✅ Saved processed order: ${symbol} ${side} ${quantity} (OID: ${entryOid})`);
   }
 
   /**
@@ -158,7 +159,7 @@ export class OrderHistoryManager {
     const removedCount = originalCount - this.historyData.processedOrders.length;
     if (removedCount > 0) {
       this.saveOrderHistory();
-      console.log(`🧹 Cleaned up ${removedCount} old order records (kept last ${daysToKeep} days)`);
+      logInfo(`🧹 Cleaned up ${removedCount} old order records (kept last ${daysToKeep} days)`);
     }
   }
 
@@ -193,22 +194,22 @@ export class OrderHistoryManager {
   printStats(): void {
     const stats = this.getStats();
 
-    console.log(`\n📊 Order History Statistics:`);
-    console.log(`==========================`);
-    console.log(`Total Orders: ${stats.totalOrders}`);
-    console.log(`Last Updated: ${new Date(stats.lastUpdated).toISOString()}`);
+    logInfo(`\n📊 Order History Statistics:`);
+    logInfo(`==========================`);
+    logInfo(`Total Orders: ${stats.totalOrders}`);
+    logInfo(`Last Updated: ${new Date(stats.lastUpdated).toISOString()}`);
 
     if (Object.keys(stats.ordersByAgent).length > 0) {
-      console.log(`\nOrders by Agent:`);
+      logInfo(`\nOrders by Agent:`);
       Object.entries(stats.ordersByAgent).forEach(([agent, count]) => {
-        console.log(`  ${agent}: ${count}`);
+        logInfo(`  ${agent}: ${count}`);
       });
     }
 
     if (Object.keys(stats.ordersBySymbol).length > 0) {
-      console.log(`\nOrders by Symbol:`);
+      logInfo(`\nOrders by Symbol:`);
       Object.entries(stats.ordersBySymbol).forEach(([symbol, count]) => {
-        console.log(`  ${symbol}: ${count}`);
+        logInfo(`  ${symbol}: ${count}`);
       });
     }
   }

@@ -13,6 +13,15 @@ jest.mock('../services/risk-manager');
 jest.mock('../services/futures-capital-manager');
 jest.mock('../services/trading-executor');
 
+// Mock logger functions
+jest.mock('../utils/logger', () => ({
+  logError: jest.fn(),
+  logWarn: jest.fn(),
+  logInfo: jest.fn(),
+  logDebug: jest.fn(),
+  logVerbose: jest.fn()
+}));
+
 // Mock console methods
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
@@ -429,6 +438,8 @@ describe('FollowService', () => {
     });
 
     it('should handle close position failure', async () => {
+      const { logError } = require('../utils/logger');
+      
       mockPositionManager.closePosition.mockResolvedValue({ success: false, symbol: 'BTCUSDT', operation: 'close', error: 'Close failed' });
 
       // Mock 订单历史
@@ -450,7 +461,7 @@ describe('FollowService', () => {
       await promise;
 
       expect(mockPositionManager.openPosition).not.toHaveBeenCalled();
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Failed to close old position'));
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Failed to close old position'));
     });
 
     it('should generate plan with releasedMargin when position changed', async () => {
@@ -654,24 +665,28 @@ describe('FollowService', () => {
     });
 
     it('should handle getAccountInfo failure gracefully', async () => {
+      const { logWarn } = require('../utils/logger');
+      
       mockTradingExecutor.getAccountInfo.mockRejectedValue(new Error('API error'));
 
       const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
       await jest.runAllTimersAsync();
       await resultPromise;
 
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to get account balance'));
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to get account balance'));
       expect(mockCapitalManager.allocateMargin).toHaveBeenCalled();
     });
 
     it('should handle getAccountInfo with non-Error', async () => {
+      const { logWarn } = require('../utils/logger');
+      
       mockTradingExecutor.getAccountInfo.mockRejectedValue('Unknown error');
 
       const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
       await jest.runAllTimersAsync();
       await resultPromise;
 
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Unknown error'));
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Unknown error'));
     });
 
     it('should apply allocation to plans', async () => {
@@ -704,6 +719,8 @@ describe('FollowService', () => {
     });
 
     it('should display capital allocation info', async () => {
+      const { logDebug } = require('../utils/logger');
+      
       mockCapitalManager.allocateMargin.mockReturnValue({
         allocations: [{
           symbol: 'BTCUSDT',
@@ -724,8 +741,8 @@ describe('FollowService', () => {
       await jest.runAllTimersAsync();
       await resultPromise;
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Capital Allocation'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Total Margin'));
+      expect(logDebug).toHaveBeenCalledWith(expect.stringContaining('Capital Allocation'));
+      expect(logDebug).toHaveBeenCalledWith(expect.stringContaining('Total Margin'));
     });
   });
 
@@ -759,27 +776,33 @@ describe('FollowService', () => {
 
   describe('clearLastPositions', () => {
     it('should clear positions for specific agent', async () => {
+      const { logWarn } = require('../utils/logger');
+      
       followService.clearLastPositions('test-agent');
       const result = followService.getLastPositions('test-agent', [mockPosition]);
 
       // 现在 clearLastPositions 只是打印警告，不实际删除数据
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
     });
 
     it('should not affect other agents', async () => {
+      const { logWarn } = require('../utils/logger');
+      
       followService.clearLastPositions('agent-1');
 
       // 现在 clearLastPositions 只是打印警告
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
     });
   });
 
   describe('clearAllLastPositions', () => {
     it('should clear all positions', async () => {
+      const { logWarn } = require('../utils/logger');
+      
       followService.clearAllLastPositions();
 
       // 现在 clearAllLastPositions 只是打印警告
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('deprecated'));
     });
   });
 

@@ -20,7 +20,28 @@ export const TIME_CONFIG = {
   BETWEEN_OPERATIONS_DELAY: 1000, // 1秒操作间延迟
 } as const;
 
+export enum LogLevel {
+  ERROR = 0,   // 只显示错误
+  WARN = 1,    // 显示警告和错误
+  INFO = 2,    // 显示重要信息(默认)
+  DEBUG = 3,   // 显示调试信息
+  VERBOSE = 4  // 显示所有信息
+}
+
 export const LOGGING_CONFIG = {
+  // 日志级别 (可通过环境变量 LOG_LEVEL 设置: ERROR, WARN, INFO, DEBUG, VERBOSE)
+  LEVEL: ((): LogLevel => {
+    const level = process.env.LOG_LEVEL?.toUpperCase();
+    switch (level) {
+      case 'ERROR': return LogLevel.ERROR;
+      case 'WARN': return LogLevel.WARN;
+      case 'INFO': return LogLevel.INFO;
+      case 'DEBUG': return LogLevel.DEBUG;
+      case 'VERBOSE': return LogLevel.VERBOSE;
+      default: return LogLevel.INFO; // 默认级别
+    }
+  })(),
+  
   // 日志配置
   EMOJIS: {
     API: '📡',
