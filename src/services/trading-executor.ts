@@ -186,16 +186,16 @@ export class TradingExecutor {
       // 转换为币安订单格式
       const binanceOrder = this.binanceService.convertToBinanceOrder(tradingPlan);
 
-      // 设置保证金模式 (只在指定为逐仓时才设置,币安默认就是全仓)
-      if (tradingPlan.marginType === 'ISOLATED') {
+      // 设置保证金模式
+      if (tradingPlan.marginType) {
         try {
-          await this.binanceService.setMarginType(tradingPlan.symbol, 'ISOLATED');
-          console.log(`✅ Margin type set to ISOLATED for ${tradingPlan.symbol}`);
+          await this.binanceService.setMarginType(tradingPlan.symbol, tradingPlan.marginType);
+          console.log(`✅ Margin type set to ${tradingPlan.marginType} for ${tradingPlan.symbol}`);
         } catch (marginTypeError) {
-          // 如果已经是逐仓模式或在Multi-Assets模式下,API会返回错误,这是正常的,可以忽略
+          // 如果已经是相同模式或在Multi-Assets模式下,API会返回错误,这是正常的,可以忽略
           const errorMessage = marginTypeError instanceof Error ? marginTypeError.message : 'Unknown error';
           if (errorMessage.includes('No need to change margin type')) {
-            console.log(`ℹ️ ${tradingPlan.symbol} is already in ISOLATED margin mode`);
+            console.log(`ℹ️ ${tradingPlan.symbol} is already in ${tradingPlan.marginType} margin mode`);
           } else if (errorMessage.includes('Multi-Assets mode') || errorMessage.includes('-4168')) {
             console.log(`ℹ️ Account is in Multi-Assets mode, using default margin type`);
           } else {
