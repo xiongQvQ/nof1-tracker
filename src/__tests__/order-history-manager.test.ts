@@ -523,6 +523,235 @@ describe('OrderHistoryManager', () => {
     });
   });
 
+  describe('createdAt field handling', () => {
+    it('should add createdAt based on earliest order when missing', () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const testData: OrderHistoryData = {
+        processedOrders: [
+          {
+            entryOid: 123456,
+            symbol: 'BTC',
+            agent: 'test-agent',
+            timestamp: Date.now() - 10000,
+            side: 'BUY',
+            quantity: 0.001
+          },
+          {
+            entryOid: 789012,
+            symbol: 'ETH',
+            agent: 'test-agent',
+            timestamp: Date.now() - 5000,
+            side: 'SELL',
+            quantity: 0.1
+          }
+        ],
+        lastUpdated: Date.now()
+      };
+
+      fs.writeJsonSync(path.join(tempDir, 'order-history.json'), testData);
+
+      const newManager = new OrderHistoryManager(tempDir);
+      const createdAt = newManager.getCreatedAt();
+
+      expect(createdAt).toBeLessThanOrEqual(Date.now() - 9000);
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Added createdAt field based on earliest order'));
+    });
+
+    it('should add createdAt based on file creation time when no orders', () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const testData: OrderHistoryData = {
+        processedOrders: [],
+        lastUpdated: Date.now()
+      };
+
+      fs.writeJsonSync(path.join(tempDir, 'order-history.json'), testData);
+
+      const newManager = new OrderHistoryManager(tempDir);
+      const createdAt = newManager.getCreatedAt();
+
+      expect(createdAt).toBeDefined();
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Added createdAt field'));
+    });
+
+    it('should return createdAt when it exists', () => {
+      const testManager = new OrderHistoryManager(tempDir);
+      testManager.saveProcessedOrder(123456, 'BTC', 'agent1', 'BUY', 0.001, 50000, '789');
+      testManager.saveProcessedOrder(789012, 'ETH', 'agent2', 'SELL', 0.1, 3000, '790');
+      
+      const createdAt = testManager.getCreatedAt();
+
+      expect(createdAt).toBeDefined();
+      expect(typeof createdAt).toBe('number');
+      expect(createdAt).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('profit exit records', () => {
+    it('should add profit exit record', () => {
+      const { logInfo } = require('../utils/logger');
+      
+      manager.addProfitExitRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        exitPrice: 52000,
+        profitPercentage: 25.5,
+        reason: 'Profit target reached'
+      });
+
+      const records = manager.getProfitExitRecords();
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        exitPrice: 52000,
+        profitPercentage: 25.5,
+        reason: 'Profit target reached'
+      });
+      expect(records[0].timestamp).toBeDefined();
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Recorded profit exit'));
+    });
+
+    it('should check if profit exit record exists', () => {
+      manager.addProfitExitRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        exitPrice: 52000,
+        profitPercentage: 25.5,
+        reason: 'Profit target reached'
+      });
+
+      expect(manager.hasProfitExitRecord(123456, 'BTCUSDT')).toBe(true);
+      expect(manager.hasProfitExitRecord(999999, 'BTCUSDT')).toBe(false);
+      expect(manager.hasProfitExitRecord(123456, 'ETHUSDT')).toBe(false);
+    });
+
+    it('should return false when no profit exits exist', () => {
+      expect(manager.hasProfitExitRecord(123456, 'BTCUSDT')).toBe(false);
+    });
+
+    it('should get profit exit records by symbol', () => {
+      manager.addProfitExitRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        exitPrice: 52000,
+        profitPercentage: 25.5,
+        reason: 'Profit target reached'
+      });
+
+      manager.addProfitExitRecord({
+        symbol: 'ETHUSDT',
+        entryOid: 789012,
+        exitPrice: 3500,
+        profitPercentage: 15.0,
+        reason: 'Profit target reached'
+      });
+
+      const btcRecords = manager.getProfitExitRecordsBySymbol('BTCUSDT');
+      expect(btcRecords).toHaveLength(1);
+      expect(btcRecords[0].symbol).toBe('BTCUSDT');
+
+      const ethRecords = manager.getProfitExitRecordsBySymbol('ETHUSDT');
+      expect(ethRecords).toHaveLength(1);
+      expect(ethRecords[0].symbol).toBe('ETHUSDT');
+    });
+
+    it('should return empty array for symbol with no profit exits', () => {
+      const records = manager.getProfitExitRecordsBySymbol('DOGEUSDT');
+      expect(records).toEqual([]);
+    });
+
+    it('should persist profit exit records to file', () => {
+      manager.addProfitExitRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        exitPrice: 52000,
+        profitPercentage: 25.5,
+        reason: 'Profit target reached'
+      });
+
+      // Create new manager instance to test persistence
+      const newManager = new OrderHistoryManager(tempDir);
+      const records = newManager.getProfitExitRecords();
+
+      expect(records).toHaveLength(1);
+      expect(records[0].symbol).toBe('BTCUSDT');
+    });
+  });
+
+  describe('reset symbol order status', () => {
+    beforeEach(() => {
+      manager.saveProcessedOrder(123456, 'BTCUSDT', 'agent1', 'BUY', 0.001, 50000, '789');
+      manager.saveProcessedOrder(789012, 'BTCUSDT', 'agent1', 'SELL', 0.002, 51000, '790');
+      manager.saveProcessedOrder(345678, 'ETHUSDT', 'agent2', 'BUY', 0.1, 3000, '791');
+    });
+
+    it('should reset specific order by entryOid', () => {
+      const { logInfo } = require('../utils/logger');
+      
+      manager.resetSymbolOrderStatus('BTCUSDT', 123456);
+
+      expect(manager.isOrderProcessed(123456, 'BTCUSDT')).toBe(false);
+      expect(manager.isOrderProcessed(789012, 'BTCUSDT')).toBe(true);
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Reset order status for BTCUSDT: removed 1 processed order'));
+    });
+
+    it('should reset all orders for a symbol', () => {
+      const { logInfo } = require('../utils/logger');
+      
+      manager.resetSymbolOrderStatus('BTCUSDT');
+
+      expect(manager.isOrderProcessed(123456, 'BTCUSDT')).toBe(false);
+      expect(manager.isOrderProcessed(789012, 'BTCUSDT')).toBe(false);
+      expect(manager.isOrderProcessed(345678, 'ETHUSDT')).toBe(true);
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Reset order status for BTCUSDT: removed 2 processed order'));
+    });
+
+    it('should log when no orders found to reset', () => {
+      const { logDebug } = require('../utils/logger');
+      
+      manager.resetSymbolOrderStatus('DOGEUSDT');
+
+      expect(logDebug).toHaveBeenCalledWith(expect.stringContaining('No processed orders found to reset'));
+    });
+
+    it('should persist reset to file', () => {
+      manager.resetSymbolOrderStatus('BTCUSDT');
+
+      // Create new manager instance to test persistence
+      const newManager = new OrderHistoryManager(tempDir);
+      expect(newManager.isOrderProcessed(123456, 'BTCUSDT')).toBe(false);
+      expect(newManager.isOrderProcessed(345678, 'ETHUSDT')).toBe(true);
+    });
+  });
+
+  describe('reload history', () => {
+    it('should reload history from file', () => {
+      manager.saveProcessedOrder(123456, 'BTC', 'agent1', 'BUY', 0.001, 50000, '789');
+
+      // Manually modify the file
+      const filePath = path.join(tempDir, 'order-history.json');
+      const data = fs.readJsonSync(filePath);
+      data.processedOrders.push({
+        entryOid: 999999,
+        symbol: 'ETH',
+        agent: 'agent2',
+        timestamp: Date.now(),
+        side: 'SELL',
+        quantity: 0.1
+      });
+      fs.writeJsonSync(filePath, data);
+
+      // Reload
+      manager.reloadHistory();
+
+      const orders = manager.getProcessedOrders();
+      expect(orders).toHaveLength(2);
+      expect(orders.some(o => o.entryOid === 999999)).toBe(true);
+    });
+  });
+
   describe('integration scenarios', () => {
     it('should handle typical trading workflow', () => {
       // Simulate a typical trading workflow
@@ -583,6 +812,33 @@ describe('OrderHistoryManager', () => {
       expect(btcOrders).toHaveLength(2);
       expect(btcOrders[0].side).toBe('BUY');
       expect(btcOrders[1].side).toBe('SELL');
+    });
+
+    it('should handle complex workflow with profit exits and resets', () => {
+      // Initial trade
+      manager.saveProcessedOrder(1001, 'BTCUSDT', 'bot1', 'BUY', 0.001, 50000, 'order1');
+      
+      // Profit exit
+      manager.addProfitExitRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 1001,
+        exitPrice: 52000,
+        profitPercentage: 20,
+        reason: 'Profit target reached'
+      });
+
+      // Reset for refollow
+      manager.resetSymbolOrderStatus('BTCUSDT', 1001);
+
+      // New trade after reset
+      manager.saveProcessedOrder(1002, 'BTCUSDT', 'bot1', 'BUY', 0.001, 52000, 'order2');
+
+      // Verify state
+      expect(manager.isOrderProcessed(1001, 'BTCUSDT')).toBe(false);
+      expect(manager.isOrderProcessed(1002, 'BTCUSDT')).toBe(true);
+      expect(manager.hasProfitExitRecord(1001, 'BTCUSDT')).toBe(true);
+      expect(manager.getProcessedOrders()).toHaveLength(1);
+      expect(manager.getProfitExitRecords()).toHaveLength(1);
     });
   });
 });

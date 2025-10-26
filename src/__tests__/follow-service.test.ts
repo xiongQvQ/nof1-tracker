@@ -870,4 +870,400 @@ describe('FollowService', () => {
       expect(result).toHaveLength(0);
     });
   });
+
+  describe('Profit Target Feature', () => {
+    it('should validate profit target range', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Test invalid profit target (too high)
+      const resultPromise1 = followService.followAgent('test-agent', [mockPosition], { profitTarget: 1500 });
+      await jest.runAllTimersAsync();
+      await resultPromise1;
+      
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Invalid profit target'));
+    });
+
+    it('should validate profit target range (negative)', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Test invalid profit target (negative)
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: -10 });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+      
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Invalid profit target'));
+    });
+
+    it('should log profit target enabled message', async () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50 });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+      
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Profit target enabled: 50%'));
+    });
+
+    it('should log auto-refollow enabled message', async () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50, autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+      
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Auto-refollow enabled'));
+    });
+
+    it('should log auto-refollow disabled message', async () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50, autoRefollow: false });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+      
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Auto-refollow disabled'));
+    });
+
+    it('should detect profit target reached', async () => {
+      // Mock getAllPositions to return position with profit
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '55000',
+          unRealizedProfit: '500',
+          leverage: '10',
+          marginType: 'ISOLATED',
+          isolatedMargin: '500'
+        }
+      ]);
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50 });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(mockPositionManager.closePosition).toHaveBeenCalled();
+    });
+
+    it('should handle profit calculation error', async () => {
+      const { logError } = require('../utils/logger');
+      
+      // Mock getAllPositions to throw error
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockRejectedValue(new Error('API error'));
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50 });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Error calculating profit percentage'));
+    });
+
+    it('should handle no binance position found', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock getAllPositions to return empty array
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([]);
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50 });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('No binance position found'));
+    });
+
+    it('should handle zero margin (returns 0% profit)', async () => {
+      // Mock order history to have existing position
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      // Mock getAllPositions to return position with zero margin
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '55000',
+          unRealizedProfit: '100',
+          leverage: '10',
+          marginType: 'ISOLATED',
+          isolatedMargin: '0'
+        }
+      ]);
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50 });
+      await jest.runAllTimersAsync();
+      const result = await resultPromise;
+
+      // When margin is 0, profitPercentage is 0 (not Infinity due to ternary operator)
+      // So profit target won't be reached and no action should be taken
+      expect(result.length).toBe(0);
+    });
+
+    it('should handle profit target close failure', async () => {
+      const { logError } = require('../utils/logger');
+      
+      // Mock getAllPositions to return position with high profit
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '60000',
+          unRealizedProfit: '1000',
+          leverage: '10',
+          marginType: 'ISOLATED',
+          isolatedMargin: '500'
+        }
+      ]);
+
+      // Mock closePosition to fail
+      mockPositionManager.closePosition.mockResolvedValue({ success: false, symbol: 'BTCUSDT', operation: 'close', error: 'Close failed' });
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { profitTarget: 50 });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Failed to close position for profit target'));
+    });
+  });
+
+  describe('Entry Changed with Error Handling', () => {
+    it('should handle getPositions error when checking existing position', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to throw error
+      (mockPositionManager as any).binanceService.getPositions.mockRejectedValue(new Error('API error'));
+
+      // Mock order history
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.runAllTimersAsync();
+      await promise;
+
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to check existing positions'));
+    });
+
+    it('should handle getAccountInfo error before close', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to return existing position
+      (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '51000',
+          unRealizedProfit: '100',
+          leverage: '10'
+        }
+      ]);
+
+      // Mock getAccountInfo to throw error
+      mockTradingExecutor.getAccountInfo.mockRejectedValueOnce(new Error('API error'));
+
+      // Mock order history
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.runAllTimersAsync();
+      await promise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to get balance before close'));
+    });
+
+    it('should handle getAccountInfo error after close', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to return existing position
+      (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '51000',
+          unRealizedProfit: '100',
+          leverage: '10'
+        }
+      ]);
+
+      // Mock getAccountInfo: first call succeeds, second call fails
+      mockTradingExecutor.getAccountInfo
+        .mockResolvedValueOnce({ availableBalance: '10000.0', totalWalletBalance: '10000.0' })
+        .mockRejectedValueOnce(new Error('API error'));
+
+      // Mock order history
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.runAllTimersAsync();
+      await promise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to get balance after close'));
+    });
+
+    it('should handle negative released margin', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to return existing position
+      (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '51000',
+          unRealizedProfit: '100',
+          leverage: '10'
+        }
+      ]);
+
+      // Mock getAccountInfo to show loss (negative released margin)
+      mockTradingExecutor.getAccountInfo
+        .mockResolvedValueOnce({ availableBalance: '10000.0', totalWalletBalance: '10000.0' })
+        .mockResolvedValueOnce({ availableBalance: '9900.0', totalWalletBalance: '9900.0' });
+
+      // Mock order history
+      mockOrderHistoryManager.getProcessedOrdersByAgent = jest.fn().mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 1000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const changedPosition: Position = { ...mockPosition, entry_oid: 99999 };
+      const promise = followService.followAgent('test-agent', [changedPosition]);
+      await jest.runAllTimersAsync();
+      await promise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Position closed with loss'));
+    });
+  });
+
+  describe('New Position with Error Handling', () => {
+    it('should handle close position failure when existing position found', async () => {
+      const { logError } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to return existing position
+      (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '51000',
+          unRealizedProfit: '100',
+          leverage: '10'
+        }
+      ]);
+
+      // Mock closePosition to fail
+      mockPositionManager.closePosition.mockResolvedValue({ success: false, symbol: 'BTCUSDT', operation: 'close', error: 'Close failed' });
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition]);
+      await jest.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Failed to close existing position'));
+      expect(result).toHaveLength(0);
+    });
+
+    it('should handle getAccountInfo error when closing existing position', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to return existing position
+      (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '51000',
+          unRealizedProfit: '100',
+          leverage: '10'
+        }
+      ]);
+
+      // Mock getAccountInfo to throw error
+      mockTradingExecutor.getAccountInfo.mockRejectedValue(new Error('API error'));
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition]);
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to get balance'));
+    });
+
+    it('should handle negative released margin when closing existing position', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      // Mock binanceService.getPositions to return existing position
+      (mockPositionManager as any).binanceService.getPositions.mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1',
+          entryPrice: '50000',
+          markPrice: '51000',
+          unRealizedProfit: '100',
+          leverage: '10'
+        }
+      ]);
+
+      // Mock getAccountInfo to show loss
+      mockTradingExecutor.getAccountInfo
+        .mockResolvedValueOnce({ availableBalance: '10000.0', totalWalletBalance: '10000.0' })
+        .mockResolvedValueOnce({ availableBalance: '9900.0', totalWalletBalance: '9900.0' });
+
+      const resultPromise = followService.followAgent('test-agent', [mockPosition]);
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Position closed with loss'));
+    });
+  });
 });
