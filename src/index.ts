@@ -51,6 +51,7 @@ program
   .option('-m, --total-margin <amount>', 'set total margin for futures trading (default: 10 USDT)', parseFloat)
   .option('--profit <percentage>', 'auto exit when profit reaches specified percentage (e.g., 30 for 30%)', parseFloat)
   .option('--auto-refollow', 'automatically refollow after profit target exit (default: false)')
+  .option('--margin-type <type>', 'margin mode: ISOLATED (isolated) or CROSSED (cross, default)', 'CROSSED')
   .action(async (agentName, options) => {
     try {
       await handleFollowCommand(agentName, options);

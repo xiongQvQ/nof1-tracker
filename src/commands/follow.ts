@@ -80,7 +80,8 @@ export async function handleFollowCommand(agentName: string, options: CommandOpt
       const followOptions = {
         totalMargin: options.totalMargin,
         profitTarget: options.profit,
-        autoRefollow: options.autoRefollow
+        autoRefollow: options.autoRefollow,
+        marginType: options.marginType || 'CROSSED'
       };
       const followPlans = await services.analyzer.followAgent(agentName, followOptions);
 

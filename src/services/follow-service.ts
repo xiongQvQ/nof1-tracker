@@ -301,15 +301,15 @@ export class FollowService {
 
     switch (change.type) {
       case 'entry_changed':
-        await this.handleEntryChanged(change, agentId, plans);
+        await this.handleEntryChanged(change, agentId, plans, options);
         break;
 
       case 'new_position':
-        await this.handleNewPosition(change, agentId, plans);
+        await this.handleNewPosition(change, agentId, plans, options);
         break;
 
       case 'position_closed':
-        this.handlePositionClosed(change, agentId, plans);
+        this.handlePositionClosed(change, agentId, plans, options);
         break;
 
       case 'profit_target_reached':
@@ -330,7 +330,8 @@ export class FollowService {
   private async handleEntryChanged(
     change: PositionChange,
     agentId: string,
-    plans: FollowPlan[]
+    plans: FollowPlan[],
+    options?: FollowOptions
   ): Promise<void> {
     const { previousPosition, currentPosition } = change;
     if (!previousPosition || !currentPosition) return;
@@ -439,7 +440,8 @@ export class FollowService {
       timestamp: Date.now(),
       position: currentPosition,
       priceTolerance,
-      releasedMargin: releasedMargin && releasedMargin > 0 ? releasedMargin : undefined
+      releasedMargin: releasedMargin && releasedMargin > 0 ? releasedMargin : undefined,
+      marginType: options?.marginType
     };
 
     plans.push(followPlan);
@@ -458,7 +460,8 @@ export class FollowService {
   private async handleNewPosition(
     change: PositionChange,
     agentId: string,
-    plans: FollowPlan[]
+    plans: FollowPlan[],
+    options?: FollowOptions
   ): Promise<void> {
     const { currentPosition } = change;
     if (!currentPosition) return;
@@ -554,7 +557,8 @@ export class FollowService {
       timestamp: Date.now(),
       position: currentPosition,
       priceTolerance,
-      releasedMargin: releasedMargin && releasedMargin > 0 ? releasedMargin : undefined
+      releasedMargin: releasedMargin && releasedMargin > 0 ? releasedMargin : undefined,
+      marginType: options?.marginType
     };
 
     plans.push(followPlan);
@@ -573,7 +577,8 @@ export class FollowService {
   private handlePositionClosed(
     change: PositionChange,
     agentId: string,
-    plans: FollowPlan[]
+    plans: FollowPlan[],
+    options?: FollowOptions
   ): void {
     const { previousPosition, currentPosition } = change;
     if (!previousPosition || !currentPosition) return;
@@ -588,7 +593,8 @@ export class FollowService {
       exitPrice: currentPosition.current_price,
       reason: `Position closed by ${agentId}`,
       agent: agentId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      marginType: options?.marginType
     };
 
     plans.push(followPlan);

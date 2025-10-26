@@ -137,8 +137,14 @@ npm start -- follow gpt-5 --profit 30
 # 盈利目标退出 + 自动重新跟单
 npm start -- follow deepseek-chat-v3.1 --profit 30 --auto-refollow
 
+# 设置保证金模式（逐仓模式）
+npm start -- follow gpt-5 --margin-type ISOLATED
+
+# 设置保证金模式（全仓模式，默认）
+npm start -- follow deepseek-chat-v3.1 --margin-type CROSSED
+
 # 组合使用
-npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow
+npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow --margin-type ISOLATED
 ```
 
 **命令选项说明**：
@@ -148,6 +154,7 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-r
 - `-m, --total-margin <amount>`: 总保证金（USDT），默认10
 - `--profit <percentage>`: 盈利目标百分比，达到后自动平仓退出
 - `--auto-refollow`: 自动重新跟单，盈利退出后自动重新入场（默认关闭）
+- `--margin-type <type>`: 保证金模式，ISOLATED（逐仓）或 CROSSED（全仓，默认）
 
 #### 3. 盈利统计分析
 ```bash

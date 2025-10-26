@@ -94,7 +94,8 @@ export function convertToTradingPlan(plan: FollowPlan): TradingPlan {
     type: plan.type,
     quantity: plan.quantity,
     leverage: plan.leverage,
-    timestamp: plan.timestamp
+    timestamp: plan.timestamp,
+    marginType: plan.marginType
   };
 }
 

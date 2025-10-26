@@ -61,6 +61,7 @@ export interface FollowPlan {
   adjustedQuantity?: number; // 调整后的数量
   allocationRatio?: number; // 分配比例
   releasedMargin?: number; // 平仓释放的资金(用于换仓时复用)
+  marginType?: 'ISOLATED' | 'CROSSED'; // 保证金模式: ISOLATED(逐仓) 或 CROSSED(全仓), 默认全仓
 }
 
 /**
@@ -157,6 +158,7 @@ export interface FollowOptions {
   profitTarget?: number;      // 盈利目标百分比 (e.g., 30 for 30%)
   autoRefollow?: boolean;     // 自动重新跟单 (默认false)
   totalMargin?: number;       // 总保证金
+  marginType?: 'ISOLATED' | 'CROSSED'; // 保证金模式: ISOLATED(逐仓) 或 CROSSED(全仓), 默认全仓
 }
 
 /**
