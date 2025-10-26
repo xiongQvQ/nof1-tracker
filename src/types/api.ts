@@ -151,6 +151,15 @@ export interface EnvironmentConfig {
 }
 
 /**
+ * 跟单配置选项
+ */
+export interface FollowOptions {
+  profitTarget?: number;      // 盈利目标百分比 (e.g., 30 for 30%)
+  autoRefollow?: boolean;     // 自动重新跟单 (默认false)
+  totalMargin?: number;       // 总保证金
+}
+
+/**
  * 应用配置
  */
 export interface AppConfig {

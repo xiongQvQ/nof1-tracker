@@ -5,7 +5,8 @@ import {
   FollowPlan,
   Nof1Response,
   PositionOperationResult,
-  EnvironmentConfig
+  EnvironmentConfig,
+  FollowOptions
 } from "../types/api";
 import { ConfigManager } from "../services/config-manager";
 import { ApiClient } from "../services/api-client";
@@ -32,7 +33,8 @@ export type {
   FollowPlan,
   Nof1Response,
   PositionOperationResult,
-  EnvironmentConfig
+  EnvironmentConfig,
+  FollowOptions
 } from "../types/api";
 
 export class ApiAnalyzer {
@@ -148,7 +150,7 @@ export class ApiAnalyzer {
    * 跟单特定AI Agent
    */
   @handleErrors(Error, 'ApiAnalyzer.followAgent')
-  async followAgent(agentId: string, totalMargin?: number): Promise<FollowPlan[]> {
+  async followAgent(agentId: string, options?: FollowOptions): Promise<FollowPlan[]> {
     // 获取 agent 数据
     const agentAccount = await this.apiClient.getAgentData(agentId);
 
@@ -160,7 +162,7 @@ export class ApiAnalyzer {
     const currentPositions = Object.values(agentAccount.positions);
 
     // 使用 FollowService 处理跟单逻辑
-    return await this.followService.followAgent(agentId, currentPositions, totalMargin);
+    return await this.followService.followAgent(agentId, currentPositions, options);
   }
 
   /**

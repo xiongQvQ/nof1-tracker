@@ -1,4 +1,5 @@
-import { Position, FollowPlan, AgentAccount } from '../scripts/analyze-api';
+import { Position, FollowPlan, AgentAccount, FollowOptions } from '../scripts/analyze-api';
+import { ProfitExitRecord } from './order-history-manager';
 import { PriceToleranceCheck } from './risk-manager';
 import { CapitalAllocationResult } from './futures-capital-manager';
 import { PositionManager } from './position-manager';
@@ -22,9 +23,10 @@ import { logInfo, logDebug, logVerbose, logWarn, logError } from '../utils/logge
  */
 interface PositionChange {
   symbol: string;
-  type: 'entry_changed' | 'new_position' | 'position_closed' | 'no_change';
+  type: 'entry_changed' | 'new_position' | 'position_closed' | 'no_change' | 'profit_target_reached';
   currentPosition?: Position;
   previousPosition?: Position;
+  profitPercentage?: number; // 盈利百分比（仅当type为profit_target_reached时有值）
 }
 
 /**
@@ -99,9 +101,26 @@ export class FollowService {
   async followAgent(
     agentId: string,
     currentPositions: Position[],
-    totalMargin?: number
+    options?: FollowOptions
   ): Promise<FollowPlan[]> {
     logInfo(`${LOGGING_CONFIG.EMOJIS.ROBOT} Following agent: ${agentId}`);
+
+    // 验证和显示跟单配置信息
+    if (options?.profitTarget) {
+      if (options.profitTarget <= 0 || options.profitTarget > 1000) {
+        logWarn(`⚠️ Invalid profit target: ${options.profitTarget}%. Must be between 0 and 1000. Using default behavior.`);
+        options.profitTarget = undefined;
+      } else {
+        logInfo(`${LOGGING_CONFIG.EMOJIS.TARGET} Profit target enabled: ${options.profitTarget}%`);
+        if (options?.autoRefollow) {
+          logInfo(`${LOGGING_CONFIG.EMOJIS.CLOSING} Auto-refollow enabled: will reset order status after profit target exit`);
+        } else {
+          logInfo(`${LOGGING_CONFIG.EMOJIS.INFO} Auto-refollow disabled: will not refollow after profit target exit`);
+        }
+      }
+    } else {
+      logInfo(`${LOGGING_CONFIG.EMOJIS.INFO} Profit target disabled: using agent's original exit plan only`);
+    }
 
     // 0. 重新加载订单历史,确保使用最新数据(支持手动修改文件)
     this.orderHistoryManager.reloadHistory();
@@ -116,11 +135,11 @@ export class FollowService {
     const followPlans: FollowPlan[] = [];
 
     // 2. 检测仓位变化
-    const changes = this.detectPositionChanges(currentPositions, previousPositions || []);
+    const changes = this.detectPositionChanges(currentPositions, previousPositions || [], options);
 
     // 3. 处理每种变化
     for (const change of changes) {
-      const plans = await this.handlePositionChange(change, agentId);
+      const plans = await this.handlePositionChange(change, agentId, options);
       followPlans.push(...plans);
     }
 
@@ -129,8 +148,8 @@ export class FollowService {
     followPlans.push(...exitPlans);
 
     // 5. 应用资金分配
-    if (totalMargin && totalMargin > 0) {
-      await this.applyCapitalAllocation(followPlans, currentPositions, totalMargin, agentId);
+    if (options?.totalMargin && options.totalMargin > 0) {
+      await this.applyCapitalAllocation(followPlans, currentPositions, options!.totalMargin, agentId);
     }
 
     // 6. 注意：不要在这里更新 lastPositions！
@@ -146,7 +165,8 @@ export class FollowService {
    */
   private detectPositionChanges(
     currentPositions: Position[],
-    previousPositions: Position[]
+    previousPositions: Position[],
+    options?: FollowOptions
   ): PositionChange[] {
     const changes: PositionChange[] = [];
     const currentPositionsMap = new Map(currentPositions.map(p => [p.symbol, p]));
@@ -155,6 +175,24 @@ export class FollowService {
     // 检查当前所有仓位
     for (const [symbol, currentPosition] of currentPositionsMap) {
       const previousPosition = previousPositionsMap.get(symbol);
+
+      // 检查盈利目标 (仅在当前有仓位时)
+      if (options?.profitTarget && currentPosition.quantity !== 0) {
+        const profitPercentage = this.calculateProfitPercentage(currentPosition);
+        logVerbose(`💰 ${symbol} current profit: ${profitPercentage.toFixed(2)}% (target: ${options.profitTarget}%)`);
+
+        if (profitPercentage >= options.profitTarget) {
+          logInfo(`🎯 Profit target reached for ${symbol}: ${profitPercentage.toFixed(2)}% >= ${options.profitTarget}%`);
+          changes.push({
+            symbol,
+            type: 'profit_target_reached',
+            currentPosition,
+            previousPosition,
+            profitPercentage
+          });
+          continue; // 如果已达到盈利目标，跳过其他变化检测
+        }
+      }
 
       if (!previousPosition) {
         // 新仓位
@@ -195,11 +233,47 @@ export class FollowService {
   }
 
   /**
+   * 计算仓位盈利百分比
+   */
+  private calculateProfitPercentage(position: Position): number {
+    try {
+      if (position.quantity === 0 || position.entry_price === 0) {
+        return 0;
+      }
+
+      // 验证价格数据有效性
+      if (isNaN(position.current_price) || isNaN(position.entry_price) || position.entry_price <= 0) {
+        logWarn(`⚠️ Invalid price data for ${position.symbol}: current_price=${position.current_price}, entry_price=${position.entry_price}`);
+        return 0;
+      }
+
+      // 计算盈利百分比
+      // 多头：(当前价格 - 入场价格) / 入场价格 * 100
+      // 空头：(入场价格 - 当前价格) / 入场价格 * 100
+      const profitPercentage = position.quantity > 0
+        ? ((position.current_price - position.entry_price) / position.entry_price) * 100
+        : ((position.entry_price - position.current_price) / position.entry_price) * 100;
+
+      // 检查计算结果的合理性
+      if (!isFinite(profitPercentage)) {
+        logWarn(`⚠️ Invalid profit calculation for ${position.symbol}: ${profitPercentage}`);
+        return 0;
+      }
+
+      return profitPercentage;
+    } catch (error) {
+      logError(`❌ Error calculating profit percentage for ${position.symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return 0;
+    }
+  }
+
+  /**
    * 处理仓位变化
    */
   private async handlePositionChange(
     change: PositionChange,
-    agentId: string
+    agentId: string,
+    options?: FollowOptions
   ): Promise<FollowPlan[]> {
     const plans: FollowPlan[] = [];
 
@@ -214,6 +288,10 @@ export class FollowService {
 
       case 'position_closed':
         this.handlePositionClosed(change, agentId, plans);
+        break;
+
+      case 'profit_target_reached':
+        await this.handleProfitTargetReached(change, agentId, plans, options);
         break;
 
       case 'no_change':
@@ -493,6 +571,55 @@ export class FollowService {
 
     plans.push(followPlan);
     logInfo(`${LOGGING_CONFIG.EMOJIS.TREND_DOWN} POSITION CLOSED: ${currentPosition.symbol} ${followPlan.side} ${followPlan.quantity} @ ${currentPosition.current_price}`);
+  }
+
+  /**
+   * 处理盈利目标达到
+   */
+  private async handleProfitTargetReached(
+    change: PositionChange,
+    agentId: string,
+    plans: FollowPlan[],
+    options?: FollowOptions
+  ): Promise<void> {
+    const { currentPosition, profitPercentage } = change;
+    if (!currentPosition || profitPercentage === undefined) return;
+
+    logInfo(`${LOGGING_CONFIG.EMOJIS.MONEY} PROFIT TARGET REACHED: ${currentPosition.symbol} - Closing position at ${profitPercentage.toFixed(2)}% profit`);
+
+    // 直接执行平仓操作
+    try {
+      const closeReason = `Profit target reached: ${profitPercentage.toFixed(2)}% by ${agentId}`;
+      const closeResult = await this.positionManager.closePosition(currentPosition.symbol, closeReason);
+
+      if (!closeResult.success) {
+        logError(`${LOGGING_CONFIG.EMOJIS.ERROR} Failed to close position for profit target: ${currentPosition.symbol} - ${closeResult.error}`);
+        return;
+      }
+
+      logInfo(`${LOGGING_CONFIG.EMOJIS.SUCCESS} Successfully closed position for profit target: ${currentPosition.symbol}`);
+
+      // 记录盈利退出事件到历史
+      this.orderHistoryManager.addProfitExitRecord({
+        symbol: currentPosition.symbol,
+        entryOid: currentPosition.entry_oid,
+        exitPrice: currentPosition.current_price,
+        profitPercentage,
+        reason: `Profit target ${profitPercentage.toFixed(2)}% reached`
+      });
+
+      // 如果启用自动重新跟单，重置订单状态
+      if (options?.autoRefollow) {
+        logInfo(`🔄 Auto-refollow enabled: Resetting order status for ${currentPosition.symbol} to allow refollowing`);
+        this.orderHistoryManager.resetSymbolOrderStatus(currentPosition.symbol, currentPosition.entry_oid);
+        logInfo(`📝 Note: ${currentPosition.symbol} will be refollowed in the next polling cycle when oid change is detected`);
+      } else {
+        logInfo(`📊 Auto-refollow disabled: ${currentPosition.symbol} will not be refollowed automatically`);
+      }
+
+    } catch (error) {
+      logError(`❌ Error handling profit target for ${currentPosition.symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**

@@ -253,7 +253,7 @@ describe('FollowService', () => {
         totalOriginalMargin: 500
       });
 
-      const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       const result = await resultPromise;
 
@@ -263,7 +263,7 @@ describe('FollowService', () => {
     });
 
     it('should skip capital allocation when totalMargin is 0', async () => {
-      const resultPromise = followService.followAgent('test-agent', [mockPosition], 0);
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { totalMargin: 0 });
       await jest.runAllTimersAsync();
       await resultPromise;
 
@@ -646,7 +646,7 @@ describe('FollowService', () => {
       await promise1;
       
       // Then close it
-      const promise2 = followService.followAgent('test-agent', [closedPosition], 1000);
+      const promise2 = followService.followAgent('test-agent', [closedPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       await promise2;
 
@@ -657,7 +657,7 @@ describe('FollowService', () => {
     it('should skip when no positions with margin', async () => {
       const noMarginPosition: Position = { ...mockPosition, margin: 0 };
       
-      const resultPromise = followService.followAgent('test-agent', [noMarginPosition], 1000);
+      const resultPromise = followService.followAgent('test-agent', [noMarginPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       await resultPromise;
 
@@ -669,7 +669,7 @@ describe('FollowService', () => {
       
       mockTradingExecutor.getAccountInfo.mockRejectedValue(new Error('API error'));
 
-      const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       await resultPromise;
 
@@ -682,7 +682,7 @@ describe('FollowService', () => {
       
       mockTradingExecutor.getAccountInfo.mockRejectedValue('Unknown error');
 
-      const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       await resultPromise;
 
@@ -706,7 +706,7 @@ describe('FollowService', () => {
         totalOriginalMargin: 500
       });
 
-      const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       const result = await resultPromise;
 
@@ -737,7 +737,7 @@ describe('FollowService', () => {
         totalOriginalMargin: 500
       });
 
-      const resultPromise = followService.followAgent('test-agent', [mockPosition], 1000);
+      const resultPromise = followService.followAgent('test-agent', [mockPosition], { totalMargin: 1000 });
       await jest.runAllTimersAsync();
       await resultPromise;
 

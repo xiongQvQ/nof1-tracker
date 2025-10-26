@@ -12,6 +12,8 @@ export interface CommandOptions {
   totalMargin?: number;
   force?: boolean;
   interval?: string;
+  profit?: number;        // 盈利目标百分比 (e.g., 30 for 30%)
+  autoRefollow?: boolean; // 自动重新跟单 (默认false)
 }
 
 /**

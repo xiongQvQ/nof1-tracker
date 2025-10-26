@@ -177,7 +177,7 @@ describe('ApiAnalyzer - followAgent Method', () => {
     it('should include capital allocation when totalMargin is provided', async () => {
       mockApiClient.getAgentData.mockResolvedValue(mockAgentAccount as any);
 
-      const result = await analyzer.followAgent('gpt-5', 1000);
+      const result = await analyzer.followAgent('gpt-5', { totalMargin: 1000 });
 
       expect(result).toHaveLength(2);
       // Should have allocation data

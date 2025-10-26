@@ -13,8 +13,18 @@ export interface ProcessedOrder {
   price?: number;
 }
 
+export interface ProfitExitRecord {
+  symbol: string;
+  entryOid: number;
+  exitPrice: number;
+  profitPercentage: number;
+  timestamp: number;
+  reason: string;
+}
+
 export interface OrderHistoryData {
   processedOrders: ProcessedOrder[];
+  profitExits?: ProfitExitRecord[]; // 盈利退出记录
   lastUpdated: number;
   createdAt?: number; // 跟单开始时间
 }
@@ -37,6 +47,11 @@ export class OrderHistoryManager {
     try {
       if (fs.existsSync(this.historyFilePath)) {
         const data = fs.readJsonSync(this.historyFilePath);
+
+        // 确保profitExits字段存在（兼容旧文件）
+        if (!data.profitExits) {
+          data.profitExits = [];
+        }
 
         // 如果没有createdAt字段，尝试添加
         if (!data.createdAt && data.processedOrders.length > 0) {
@@ -72,6 +87,7 @@ export class OrderHistoryManager {
     // 返回默认空历史
     const emptyHistory: OrderHistoryData = {
       processedOrders: [],
+      profitExits: [],
       lastUpdated: Date.now(),
       createdAt: Date.now()
     };
@@ -279,5 +295,85 @@ export class OrderHistoryManager {
         logInfo(`  ${symbol}: ${count}`);
       });
     }
+  }
+
+  /**
+   * 添加盈利退出记录
+   */
+  addProfitExitRecord(record: Omit<ProfitExitRecord, 'timestamp'>): void {
+    const profitExitRecord: ProfitExitRecord = {
+      ...record,
+      timestamp: Date.now()
+    };
+
+    // 初始化profitExits数组（如果不存在）
+    if (!this.historyData.profitExits) {
+      this.historyData.profitExits = [];
+    }
+
+    this.historyData.profitExits.push(profitExitRecord);
+    this.saveOrderHistory();
+    logInfo(`💰 Recorded profit exit: ${record.symbol} at ${record.profitPercentage.toFixed(2)}% profit`);
+  }
+
+  /**
+   * 检查特定订单是否有盈利退出记录
+   */
+  hasProfitExitRecord(entryOid: number, symbol: string): boolean {
+    if (!this.historyData.profitExits) {
+      return false;
+    }
+
+    return this.historyData.profitExits.some(
+      record => record.entryOid === entryOid && record.symbol === symbol
+    );
+  }
+
+  /**
+   * 重置特定symbol的订单处理状态（用于重新跟单）
+   */
+  resetSymbolOrderStatus(symbol: string, entryOid?: number): void {
+    let removedCount = 0;
+
+    if (entryOid) {
+      // 移除特定OID的订单记录
+      const originalLength = this.historyData.processedOrders.length;
+      this.historyData.processedOrders = this.historyData.processedOrders.filter(
+        order => !(order.entryOid === entryOid && order.symbol === symbol)
+      );
+      removedCount = originalLength - this.historyData.processedOrders.length;
+    } else {
+      // 移除该symbol的所有订单记录
+      const originalLength = this.historyData.processedOrders.length;
+      this.historyData.processedOrders = this.historyData.processedOrders.filter(
+        order => order.symbol !== symbol
+      );
+      removedCount = originalLength - this.historyData.processedOrders.length;
+    }
+
+    if (removedCount > 0) {
+      this.saveOrderHistory();
+      logInfo(`🔄 Reset order status for ${symbol}: removed ${removedCount} processed order(s)`);
+    } else {
+      logDebug(`🔄 No processed orders found to reset for ${symbol}`);
+    }
+  }
+
+  /**
+   * 获取盈利退出记录
+   */
+  getProfitExitRecords(): ProfitExitRecord[] {
+    return [...(this.historyData.profitExits || [])];
+  }
+
+  /**
+   * 获取特定symbol的盈利退出记录
+   */
+  getProfitExitRecordsBySymbol(symbol: string): ProfitExitRecord[] {
+    if (!this.historyData.profitExits) {
+      return [];
+    }
+
+    return this.historyData.profitExits.filter(record => record.symbol === symbol);
   }
 }
