@@ -36,6 +36,8 @@ npm start -- profit
 - **🤖 AI Agent跟单**: 支持7个AI量化交易Agent（GPT-5、Gemini、DeepSeek等）
 - **📊 实时监控**: 可配置轮询间隔，持续跟踪Agent交易动作
 - **🔄 智能跟单**: 自动识别开仓、平仓、换仓（OID变化）和止盈止损
+- **🎯 盈利目标退出**: 支持设置自定义盈利目标，达到后自动平仓退出
+- **🔄 自动重新跟单**: 可选的自动重新跟单功能，盈利退出后自动重新入场
 - **⚡ 合约交易**: 完整支持Binance USDT永续合约，支持1x-125x杠杆
 - **📈 盈利统计**: 精确的盈利分析，基于真实交易数据计算（含手续费统计）
 - **🛡️ 风险控制**: 支持`--risk-only`模式，只观察不执行交易
@@ -129,8 +131,14 @@ npm start -- follow gpt-5 --total-margin 5000
 # 设置价格容差（默认1.0%）
 npm start -- follow deepseek-chat-v3.1 --price-tolerance 1.0
 
+# 盈利目标退出（达到30%盈利时自动平仓）
+npm start -- follow gpt-5 --profit 30
+
+# 盈利目标退出 + 自动重新跟单
+npm start -- follow deepseek-chat-v3.1 --profit 30 --auto-refollow
+
 # 组合使用
-npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
+npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow
 ```
 
 **命令选项说明**：
@@ -138,6 +146,8 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
 - `-i, --interval <seconds>`: 轮询间隔（秒），默认30秒
 - `-t, --price-tolerance <percentage>`: 价格容差百分比，默认1.0%
 - `-m, --total-margin <amount>`: 总保证金（USDT），默认10
+- `--profit <percentage>`: 盈利目标百分比，达到后自动平仓退出
+- `--auto-refollow`: 自动重新跟单，盈利退出后自动重新入场（默认关闭）
 
 #### 3. 盈利统计分析
 ```bash
@@ -198,6 +208,54 @@ npm start -- status
 2. **📉 平仓 (EXIT)** - Agent平仓时自动跟单
 3. **🔄 换仓 (OID变化)** - 检测到entry_oid变化时，先平旧仓再开新仓
 4. **🎯 止盈止损** - 价格达到profit_target或stop_loss时自动平仓
+
+### 🎯 盈利目标退出和自动重新跟单
+
+#### 盈利目标退出
+设置自定义盈利目标，当仓位达到指定盈利百分比时自动平仓退出：
+
+```bash
+# 当盈利达到30%时自动平仓
+npm start -- follow gpt-5 --profit 30
+
+# 当盈利达到50%时自动平仓
+npm start -- follow deepseek-chat-v3.1 --profit 50
+```
+
+**特点**：
+- ✅ 实时监控每个仓位的盈利百分比
+- ✅ 达到目标后立即执行市价平仓
+- ✅ 支持多头和空头仓位的盈利计算
+- ✅ 完整的盈利退出事件记录
+
+#### 自动重新跟单
+在盈利退出的基础上，可选择自动重新跟单功能：
+
+```bash
+# 盈利30%退出后，自动重新跟单
+npm start -- follow gpt-5 --profit 30 --auto-refollow
+
+# 组合使用：持续监控 + 盈利目标 + 自动重新跟单
+npm start -- follow deepseek-chat-v3.1 --interval 30 --profit 25 --auto-refollow
+```
+
+**工作流程**：
+1. 🔍 检测到仓位盈利达到目标（如30%）
+2. 💰 立即执行市价平仓，锁定盈利
+3. 📝 记录盈利退出事件到历史
+4. 🔄 重置该symbol的订单处理状态
+5. ⏭️ 下个轮询周期检测到OID变化，自动重新跟单
+
+**安全特性**：
+- 🛡️ 重新跟单前进行价格容忍度检查
+- 📊 保留agent原始的止盈止损计划
+- 🔄 可选功能，默认关闭避免意外影响
+- 📝 完整的操作日志记录
+
+**使用建议**：
+- 🎯 保守策略：`--profit 20` （20%盈利退出）
+- ⚖️ 平衡策略：`--profit 30 --auto-refollow` （30%盈利退出并重新跟单）
+- 🚀 积极策略：`--profit 50 --auto-refollow` （50%盈利退出并重新跟单）
 
 ### 使用示例
 

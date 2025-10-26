@@ -135,7 +135,7 @@ export class FollowService {
     const followPlans: FollowPlan[] = [];
 
     // 2. 检测仓位变化
-    const changes = this.detectPositionChanges(currentPositions, previousPositions || [], options);
+    const changes = await this.detectPositionChanges(currentPositions, previousPositions || [], options);
 
     // 3. 处理每种变化
     for (const change of changes) {
@@ -163,11 +163,11 @@ export class FollowService {
   /**
    * 检测仓位变化
    */
-  private detectPositionChanges(
+  private async detectPositionChanges(
     currentPositions: Position[],
     previousPositions: Position[],
     options?: FollowOptions
-  ): PositionChange[] {
+  ): Promise<PositionChange[]> {
     const changes: PositionChange[] = [];
     const currentPositionsMap = new Map(currentPositions.map(p => [p.symbol, p]));
     const previousPositionsMap = new Map(previousPositions.map(p => [p.symbol, p]));
@@ -178,8 +178,8 @@ export class FollowService {
 
       // 检查盈利目标 (仅在当前有仓位时)
       if (options?.profitTarget && currentPosition.quantity !== 0) {
-        const profitPercentage = this.calculateProfitPercentage(currentPosition);
-        logVerbose(`💰 ${symbol} current profit: ${profitPercentage.toFixed(2)}% (target: ${options.profitTarget}%)`);
+        const profitPercentage = await this.calculateProfitPercentage(currentPosition);
+        logInfo(`💰 ${symbol} current profit: ${profitPercentage.toFixed(2)}% (target: ${options.profitTarget}%)`);
 
         if (profitPercentage >= options.profitTarget) {
           logInfo(`🎯 Profit target reached for ${symbol}: ${profitPercentage.toFixed(2)}% >= ${options.profitTarget}%`);
@@ -233,26 +233,48 @@ export class FollowService {
   }
 
   /**
-   * 计算仓位盈利百分比
+   * 计算仓位盈利百分比（使用币安真实数据）
    */
-  private calculateProfitPercentage(position: Position): number {
+  private async calculateProfitPercentage(position: Position): Promise<number> {
     try {
-      if (position.quantity === 0 || position.entry_price === 0) {
+      if (position.quantity === 0) {
         return 0;
       }
 
-      // 验证价格数据有效性
-      if (isNaN(position.current_price) || isNaN(position.entry_price) || position.entry_price <= 0) {
-        logWarn(`⚠️ Invalid price data for ${position.symbol}: current_price=${position.current_price}, entry_price=${position.entry_price}`);
+      // 从币安API获取真实仓位数据
+      const binancePositions = await this.positionManager['binanceService'].getAllPositions();
+      const targetSymbol = this.positionManager['binanceService'].convertSymbol(position.symbol);
+      const binancePosition = binancePositions.find(p => p.symbol === targetSymbol && parseFloat(p.positionAmt) !== 0);
+
+      if (!binancePosition) {
+        logWarn(`⚠️ No binance position found for ${position.symbol} (${targetSymbol})`);
         return 0;
+      }
+
+      // 使用币安的真实未实现盈亏数据
+      const unrealizedProfit = parseFloat(binancePosition.unRealizedProfit);
+      const entryPrice = parseFloat(binancePosition.entryPrice);
+      const positionAmt = parseFloat(binancePosition.positionAmt);
+      const marginType = binancePosition.marginType;
+
+      // 计算保证金基础
+      let marginBase = 0;
+      if (marginType === 'ISOLATED') {
+        marginBase = parseFloat(binancePosition.isolatedMargin);
+      } else {
+        // 交叉保证金，使用实际占用保证金
+        marginBase = Math.abs(positionAmt * entryPrice) / parseFloat(binancePosition.leverage);
       }
 
       // 计算盈利百分比
-      // 多头：(当前价格 - 入场价格) / 入场价格 * 100
-      // 空头：(入场价格 - 当前价格) / 入场价格 * 100
-      const profitPercentage = position.quantity > 0
-        ? ((position.current_price - position.entry_price) / position.entry_price) * 100
-        : ((position.entry_price - position.current_price) / position.entry_price) * 100;
+      const profitPercentage = marginBase > 0 ? (unrealizedProfit / marginBase) * 100 : 0;
+
+      // 调试信息
+      logInfo(`📈 ${position.symbol} Binance profit data:`);
+      logInfo(`   💰 Unrealized P&L: $${unrealizedProfit.toFixed(2)}`);
+      logInfo(`   💰 Margin: $${marginBase.toFixed(2)} (${marginType})`);
+      logInfo(`   📊 Profit %: ${profitPercentage.toFixed(2)}%`);
+      logInfo(`   📊 Binance entry: $${entryPrice.toFixed(2)}, Agent entry: $${position.entry_price}`);
 
       // 检查计算结果的合理性
       if (!isFinite(profitPercentage)) {

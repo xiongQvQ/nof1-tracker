@@ -413,6 +413,23 @@ export class TradingExecutor {
   }
 
   /**
+   * 获取订单详情
+   */
+  async getOrderDetails(orderId: string, symbol?: string): Promise<OrderResponse | null> {
+    try {
+      // 如果没有提供symbol，我们无法获取订单详情
+      if (!symbol) {
+        console.warn(`⚠️ Cannot get order details without symbol for order ${orderId}`);
+        return null;
+      }
+      return await this.binanceService.getOrderStatus(symbol, parseInt(orderId));
+    } catch (error) {
+      console.error(`❌ Failed to get order details for ${orderId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return null;
+    }
+  }
+
+  /**
    * 取消所有订单
    */
   async cancelAllOrders(symbol: string): Promise<boolean> {

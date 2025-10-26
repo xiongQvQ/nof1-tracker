@@ -36,6 +36,8 @@ npm start -- profit
 - **🤖 AI Agent Copy Trading**: Support 7 AI quantitative trading agents (GPT-5, Gemini, DeepSeek, etc.)
 - **📊 Real-time Monitoring**: Configurable polling interval for continuous agent tracking
 - **🔄 Smart Copy Trading**: Auto-detect open, close, switch positions (OID changes), and stop-loss/take-profit
+- **🎯 Profit Target Exit**: Support custom profit targets with automatic position closing when reached
+- **🔄 Auto Refollow**: Optional auto-refollow feature that automatically re-enters after profit target exit
 - **⚡ Futures Trading**: Full support for Binance USDT perpetual futures, 1x-125x leverage
 - **📈 Profit Analysis**: Accurate profit analysis based on real trading data (including fee statistics)
 - **🛡️ Risk Control**: Support `--risk-only` mode for observation without execution
@@ -128,8 +130,14 @@ npm start -- follow gpt-5 --total-margin 5000
 # Set price tolerance (default 1.0%)
 npm start -- follow deepseek-chat-v3.1 --price-tolerance 1.0
 
+# Profit target exit (auto close when 30% profit reached)
+npm start -- follow gpt-5 --profit 30
+
+# Profit target exit + auto refollow
+npm start -- follow deepseek-chat-v3.1 --profit 30 --auto-refollow
+
 # Combined usage
-npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
+npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow
 ```
 
 **Command Options**:
@@ -137,6 +145,8 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --risk-only
 - `-i, --interval <seconds>`: Polling interval in seconds, default 30
 - `-t, --price-tolerance <percentage>`: Price tolerance percentage, default 1.0%
 - `-m, --total-margin <amount>`: Total margin (USDT), default 10
+- `--profit <percentage>`: Profit target percentage, auto close when reached
+- `--auto-refollow`: Auto refollow after profit target exit (disabled by default)
 
 #### 3. Profit Statistics Analysis
 ```bash
@@ -197,6 +207,54 @@ System automatically detects 4 types of trading signals:
 2. **📉 Close Position (EXIT)** - Auto copy when agent closes position
 3. **🔄 Switch Position (OID Change)** - Close old position then open new when entry_oid changes
 4. **🎯 Stop Loss/Take Profit** - Auto close when price reaches profit_target or stop_loss
+
+### 🎯 Profit Target Exit and Auto Refollow
+
+#### Profit Target Exit
+Set custom profit targets to automatically close positions when specified profit percentage is reached:
+
+```bash
+# Auto close when profit reaches 30%
+npm start -- follow gpt-5 --profit 30
+
+# Auto close when profit reaches 50%
+npm start -- follow deepseek-chat-v3.1 --profit 50
+```
+
+**Features**:
+- ✅ Real-time monitoring of profit percentage for each position
+- ✅ Immediate market order execution when target is reached
+- ✅ Support for both long and short position profit calculations
+- ✅ Complete profit exit event recording
+
+#### Auto Refollow
+Build upon profit exit with optional auto-refollow functionality:
+
+```bash
+# Auto refollow after 30% profit exit
+npm start -- follow gpt-5 --profit 30 --auto-refollow
+
+# Combined: Continuous monitoring + Profit target + Auto refollow
+npm start -- follow deepseek-chat-v3.1 --interval 30 --profit 25 --auto-refollow
+```
+
+**Workflow**:
+1. 🔍 Detect position profit reaches target (e.g., 30%)
+2. 💰 Execute immediate market order close to lock profit
+3. 📝 Record profit exit event to history
+4. 🔄 Reset order processing status for that symbol
+5. ⏭️ Next polling cycle detects OID change and auto refollows
+
+**Safety Features**:
+- 🛡️ Price tolerance check before refollowing
+- 📊 Preserve agent's original stop-loss/take-profit plan
+- 🔄 Optional feature, disabled by default to avoid unintended impact
+- 📝 Complete operation logging
+
+**Usage Recommendations**:
+- 🎯 Conservative: `--profit 20` (20% profit exit)
+- ⚖️ Balanced: `--profit 30 --auto-refollow` (30% profit exit with refollow)
+- 🚀 Aggressive: `--profit 50 --auto-refollow` (50% profit exit with refollow)
 
 ### Usage Examples
 
