@@ -7,7 +7,8 @@ import {
   handleFollowCommand,
   handleStatusCommand,
   handleProfitCommand,
-  ProfitCommandOptions
+  ProfitCommandOptions,
+  handleTelegramCommand
 } from './commands';
 import { handleError, getVersion } from './utils/command-helpers';
 
@@ -57,6 +58,17 @@ program
       await handleFollowCommand(agentName, options);
     } catch (error) {
       handleError(error, 'Follow agent failed');
+    }
+  });
+
+program
+  .command('telegram-test')
+  .description('Send a test Telegram message')
+  .action(async (options) => {
+    try {
+      await handleTelegramCommand(options);
+    } catch (error) {
+      handleError(error, 'Failed to send test Telegram message');
     }
   });
 

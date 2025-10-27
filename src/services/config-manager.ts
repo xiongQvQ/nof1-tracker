@@ -1,6 +1,11 @@
 export interface TradingConfig {
   defaultPriceTolerance: number;
   symbolTolerances: Record<string, number>;
+  telegram: {
+    enabled: boolean;
+    token: string;
+    chatId: string;
+  }
 }
 
 export class ConfigManager {
@@ -9,7 +14,12 @@ export class ConfigManager {
   constructor() {
     this.config = {
       defaultPriceTolerance: 1.0, // Default 1.0%
-      symbolTolerances: {}
+      symbolTolerances: {},
+      telegram: {
+        enabled: false,
+        token: "",
+        chatId: "",
+      }
     };
   }
 
@@ -43,6 +53,14 @@ export class ConfigManager {
     this.config.symbolTolerances[symbol] = tolerance;
   }
 
+  setTelegramConfig(enabled: boolean, token: string, chatId: string): void {
+    this.config.telegram = {
+      enabled,
+      token,
+      chatId,
+    };
+  }
+
   /**
    * 从环境变量加载配置
    */
@@ -67,6 +85,14 @@ export class ConfigManager {
         }
       }
     });
+
+    // Load Telegram configuration
+    const telegramEnabled = process.env.TELEGRAM_ENABLED === 'true';
+    const telegramToken = process.env.TELEGRAM_API_TOKEN || '';
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID || '';
+    if (telegramEnabled && telegramToken && telegramChatId) {
+      this.setTelegramConfig(telegramEnabled, telegramToken, telegramChatId);
+    }
   }
 
   /**
@@ -75,7 +101,8 @@ export class ConfigManager {
   exportConfig(): TradingConfig {
     return {
       ...this.config,
-      symbolTolerances: { ...this.config.symbolTolerances }
+      symbolTolerances: { ...this.config.symbolTolerances },
+      telegram: { ...this.config.telegram }
     };
   }
 
@@ -92,6 +119,10 @@ export class ConfigManager {
         this.setSymbolTolerance(symbol, tolerance);
       });
     }
+
+    if (config.telegram) {
+      this.setTelegramConfig(config.telegram.enabled, config.telegram.token, config.telegram.chatId);
+    }
   }
 
   /**
@@ -100,7 +131,12 @@ export class ConfigManager {
   reset(): void {
     this.config = {
       defaultPriceTolerance: 1.0,
-      symbolTolerances: {}
+      symbolTolerances: {},
+      telegram: {
+        enabled: false,
+        token: "",
+        chatId: "",
+      }
     };
   }
 
