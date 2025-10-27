@@ -72,8 +72,10 @@ Dashboard项目地址: https://github.com/terryso/nof1-tracker-dashboard
 本系统使用 **Binance 合约交易API**，必须正确配置权限：
 
 #### 创建API密钥
-1. 登录 [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
-2. 创建新API密钥，完成安全验证
+1. 首先先注册一个币安帐号: https://www.maxweb.red/referral/earn-together/refer2earn-usdc/claim?hl=zh-CN&ref=GRO_28502_ACBRJ&utm_source=default
+2. 登录 [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
+3. 创建新API密钥，完成安全验证
+   
 
 #### 配置权限（关键）
 - ✅ **Enable Futures** - 启用合约交易（必选）
