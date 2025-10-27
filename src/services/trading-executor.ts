@@ -344,13 +344,14 @@ export class TradingExecutor {
                       // Send Telegram notification for stop loss
           const telegramConfig = this.configManager.getConfig().telegram;
           if (telegramConfig.enabled) {
-            const slMessage = this.telegramService!.formatStopOrderMessage(
-            'stop_loss',
+            const telegramService = new TelegramService(telegramConfig.token);
+            const slMessage = telegramService.formatStopOrderMessage(
+              'stop_loss',
               stopOrders.stopLossOrder!.symbol,
               stopOrders.stopLossOrder!.stopPrice.toString(),
               stopLossOrderId
             );
-            await this.telegramService!.sendMessage(telegramConfig.chatId, slMessage);
+            await telegramService.sendMessage(telegramConfig.chatId, slMessage);
           }
           console.log(`✅ Stop Loss order placed: ${stopLossOrderId}`);
         } catch (slError) {
