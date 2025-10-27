@@ -50,6 +50,8 @@ npm start -- profit
 
 实时查看 deepseek-chat-v3.1 AI Agent 的交易表现、持仓情况和盈亏统计。
 
+Dashboard项目地址: https://github.com/terryso/nof1-tracker-dashboard
+
 ## 🤖 支持的AI Agent
 
 | Agent名称 |
