@@ -50,6 +50,8 @@ npm start -- profit
 
 Real-time view of deepseek-chat-v3.1 AI Agent's trading performance, positions, and profit/loss statistics.
 
+Dashboard: https://github.com/terryso/nof1-tracker-dashboard
+
 ## 🤖 Supported AI Agents
 
 | Agent Name |
