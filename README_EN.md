@@ -23,13 +23,16 @@ cp .env.example .env
 # 3. View available AI Agents
 npm start -- agents
 
-# 4. Start copy trading (risk-only mode, no real trades)
+# 4. Test Telegram notifications (optional)
+npm start -- telegram-test
+
+# 5. Start copy trading (risk-only mode, no real trades)
 npm start -- follow deepseek-chat-v3.1 --risk-only
 
-# 5. Continuous monitoring (check every 30 seconds)
+# 6. Continuous monitoring (check every 30 seconds)
 npm start -- follow gpt-5 --interval 30
 
-# 6. View profit statistics
+# 7. View profit statistics
 npm start -- profit
 ```
 
@@ -43,6 +46,7 @@ npm start -- profit
 - **⚡ Futures Trading**: Full support for Binance USDT perpetual futures, 1x-125x leverage
 - **📈 Profit Analysis**: Accurate profit analysis based on real trading data (including fee statistics)
 - **🛡️ Risk Control**: Support `--risk-only` mode for observation without execution
+- **📱 Telegram Notifications**: Real-time Telegram notifications for trade executions and stop-loss/take-profit events
 
 ## 📊 Live Trading Dashboard
 
@@ -51,6 +55,49 @@ npm start -- profit
 Real-time view of deepseek-chat-v3.1 AI Agent's trading performance, positions, and profit/loss statistics.
 
 Dashboard: https://github.com/terryso/nof1-tracker-dashboard
+
+## 📱 Telegram Notifications
+
+Enable Telegram notifications to receive real-time alerts about your trading activities:
+
+### Features
+
+- **🔔 Trade Executions**: Get notified when trades are executed (LONG/SHORT positions)
+- **📊 Rich Formatting**: Beautifully formatted messages with emojis and detailed trade information
+- **🎯 Stop Loss & Take Profit**: Alerts when stop-loss or take-profit orders are set
+- **🔐 Security**: Configure via environment variables for secure access
+
+### Message Format
+
+Messages include:
+- 📈 Trade direction (LONG/SHORT) with emojis
+- 💰 Quantity and price
+- 🆔 Order ID
+- 📊 Order status
+- ⚡ Leverage information
+- 🔒 Margin type (ISOLATED/CROSSED)
+
+### Example Notifications
+
+```
+✅ Trade Executed
+
+📈 LONG BTCUSDT
+💰 Quantity: 1.5
+💵 Price: 50000.00
+🆔 Order ID: 123456
+📊 Status: FILLED
+⚡ Leverage: 10x
+🔒 Isolated
+```
+
+```
+🎯 Take Profit Order Set
+
+📊 Symbol: BTCUSDT
+💵 Price: 55000.00
+🆔 Order ID: tp123
+```
 
 ## 🤖 Supported AI Agents
 
@@ -90,7 +137,35 @@ This system uses **Binance Futures Trading API**, permissions must be configured
    BINANCE_API_SECRET=testnet_secret_key
    ```
 
-### 2. Environment Variables
+### 2. Telegram Notification Setup (Optional)
+
+Set up Telegram notifications to receive real-time trading signals and alerts:
+
+1. **Create a Telegram Bot**:
+   - Open Telegram and search for [@BotFather](https://t.me/BotFather)
+   - Send `/newbot` command and follow the instructions
+   - Save the bot token you receive
+
+2. **Get Your Chat ID**:
+   - Search for your bot in Telegram
+   - Send any message to your bot
+   - Visit `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+   - Look for `"chat":{"id":<YOUR_CHAT_ID>}`
+
+3. **Configure Environment Variables**:
+   ```env
+   # Telegram Configuration (Optional)
+   TELEGRAM_ENABLED=true
+   TELEGRAM_API_TOKEN=your_telegram_bot_token
+   TELEGRAM_CHAT_ID=your_telegram_chat_id
+   ```
+
+4. **Test Telegram Connection**:
+   ```bash
+   npm start -- telegram-test
+   ```
+
+### 3. Environment Variables
 
 ```env
 # Binance API Configuration - Must support futures trading
@@ -102,6 +177,11 @@ BINANCE_TESTNET=true  # true=testnet, false=mainnet
 MAX_POSITION_SIZE=1000
 DEFAULT_LEVERAGE=10
 RISK_PERCENTAGE=2.0
+
+# Telegram Configuration (Optional)
+TELEGRAM_ENABLED=true
+TELEGRAM_API_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
 
 ## 📖 Usage
@@ -204,6 +284,12 @@ npm start -- profit --exclude-unrealized
 npm start -- status
 ```
 
+#### 5. Telegram Notification Test
+```bash
+# Test Telegram bot connection and send test message
+npm start -- telegram-test
+```
+
 ### Copy Trading Strategy
 
 System automatically detects 4 types of trading signals:
@@ -271,13 +357,16 @@ npm start -- status
 # 2. View available agents
 npm start -- agents
 
-# 3. Risk control mode test
+# 3. Test Telegram notifications (if configured)
+npm start -- telegram-test
+
+# 4. Risk control mode test
 npm start -- follow buynhold_btc --risk-only
 
-# 4. Single copy trade test
+# 5. Single copy trade test
 npm start -- follow deepseek-chat-v3.1
 
-# 5. View profit statistics
+# 6. View profit statistics
 npm start -- profit
 ```
 
@@ -327,7 +416,8 @@ src/
 │   ├── agents.ts          # Get AI agent list
 │   ├── follow.ts          # Copy trade command (core)
 │   ├── profit.ts          # Profit statistics analysis
-│   └── status.ts          # System status check
+│   ├── status.ts          # System status check
+│   └── telegram.ts        # Telegram notification test
 ├── services/              # Core services
 │   ├── api-client.ts      # Nof1 API client
 │   ├── binance-service.ts # Binance API integration
@@ -336,7 +426,8 @@ src/
 │   ├── profit-calculator.ts # Profit calculation engine
 │   ├── trade-history-service.ts # Trade history service
 │   ├── order-history-manager.ts # Order history management
-│   └── futures-capital-manager.ts # Futures capital management
+│   ├── futures-capital-manager.ts # Futures capital management
+│   └── telegram-service.ts # Telegram notification service
 ├── scripts/
 │   └── analyze-api.ts     # API analysis engine (copy trading strategy)
 ├── types/                 # TypeScript type definitions
@@ -354,6 +445,8 @@ User Command → follow handler → ApiAnalyzer analyzes agent signals
     Generate FollowPlan → TradingExecutor executes
          ↓
     BinanceService → Binance API → Trade completed
+         ↓
+    TelegramService sends notification (if enabled)
 
 Profit Analysis Flow:
 User Command → profit handler → TradeHistoryService fetches historical trades
@@ -363,6 +456,15 @@ User Command → profit handler → TradeHistoryService fetches historical trade
     Generate statistics report (basic stats, grouped stats, risk metrics)
          ↓
     Output results (table/JSON format)
+
+Telegram Notification Flow:
+Trading Executor → Trade/Order event
+         ↓
+    TelegramService.formatTradeMessage()
+         ↓
+    Send to Telegram API
+         ↓
+    User receives notification
 ```
 
 ## ⚠️ Important Notes
@@ -415,6 +517,17 @@ Error: Invalid API Key
 - Check if API key in `.env` file is correct
 - Confirm API key has not expired
 - Verify complete key is copied (no extra spaces)
+
+**5. Telegram Notification Issues**
+```
+Error: Failed to send Telegram message
+```
+- ✅ Check if `TELEGRAM_ENABLED=true` in `.env` file
+- ✅ Verify Telegram bot token is correct (from @BotFather)
+- ✅ Verify chat ID is correct (get from bot API)
+- ✅ Test with `npm start -- telegram-test`
+- ✅ Ensure bot has not been blocked or deleted
+- ✅ Check internet connection for Telegram API access
 
 ## 🔧 Development
 
