@@ -10,6 +10,8 @@ A command-line tool for tracking nof1.ai AI Agent trading signals and automatica
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F11HO935)
 
+<img width="220" height="286" alt="b7c0054cf81fe6735d60ab5de48243e5" src="https://github.com/user-attachments/assets/4628befa-96b4-42dd-af42-4724a9a28336" />
+
 ## ⚡ Quick Start
 
 ```bash
