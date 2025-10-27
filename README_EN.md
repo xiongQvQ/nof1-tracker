@@ -71,8 +71,9 @@ Dashboard: https://github.com/terryso/nof1-tracker-dashboard
 This system uses **Binance Futures Trading API**, permissions must be configured correctly:
 
 #### Create API Key
-1. Login to [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
-2. Create new API key, complete security verification
+1. Register Binance Account: https://www.maxweb.red/referral/earn-together/refer2earn-usdc/claim?hl=zh-CN&ref=GRO_28502_ACBRJ&utm_source=default
+2. Login to [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
+3. Create new API key, complete security verification
 
 #### Configure Permissions (Critical)
 - ✅ **Enable Futures** - Enable futures trading (Required)
