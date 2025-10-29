@@ -38,3 +38,6 @@ temp/
 .claude/
 data
 .jest-cache
+
+# Trading data (contains sensitive order history)
+order-history.json
